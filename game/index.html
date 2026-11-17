@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solmar Bay — An Open-World Crime Story</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1210; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #game-root { position: fixed; inset: 0; }
+  #game { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .hidden { display: none !important; }
+  #hud.title-mode > *:not(.overlay) { display: none !important; }
+  #hud { position: absolute; inset: 0; pointer-events: none; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+  .panel { background: rgba(10, 12, 18, .55); border-radius: 8px; padding: 8px 12px; }
+  #top-left { position: absolute; top: 14px; left: 14px; }
+  #cash { font-size: 26px; font-weight: 800; color: #7dff9a; }
+  #health-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+  #health-bar { width: 150px; height: 10px; background: rgba(0,0,0,.6); border-radius: 5px; overflow: hidden; }
+  #health-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ff5a4a, #ff8a5a); transition: width .2s; }
+  #district { font-size: 13px; color: #ffd98a; margin-top: 4px; }
+  #top-right { position: absolute; top: 14px; right: 14px; text-align: right; }
+  #stars { font-size: 26px; letter-spacing: 4px; color: #cfd6de; }
+  #stars.hot { color: #ffd23c; animation: blink .7s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: .45; } }
+  #objective-wrap { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); text-align: center; max-width: 560px; }
+  #objective { font-size: 16px; font-weight: 700; }
+  #objective-dist { font-size: 13px; color: #ffd98a; }
+  #banner { position: absolute; top: 84px; left: 50%; transform: translateX(-50%); font-size: 18px; font-weight: 700; color: #ffe9a8; background: rgba(10,12,18,.6); padding: 8px 16px; border-radius: 8px; }
+  #subtitle { position: absolute; bottom: 150px; left: 50%; transform: translateX(-50%); max-width: 640px; text-align: center; font-size: 17px; background: rgba(0,0,0,.55); padding: 8px 14px; border-radius: 8px; }
+  #minimap { position: absolute; left: 14px; bottom: 14px; width: 180px; height: 180px; border: 2px solid rgba(255,255,255,.35); border-radius: 50%; background: #0d1b26; }
+  #speed { position: absolute; right: 18px; bottom: 18px; font-size: 26px; font-weight: 800; }
+  #prompt { position: absolute; right: 18px; bottom: 58px; font-size: 15px; font-weight: 600; color: #ffe9a8; }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; }
+  #crosshair::before, #crosshair::after { content: ""; position: absolute; background: #fff; }
+  #crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
+  #crosshair::after { left: 0; top: 8px; width: 18px; height: 2px; }
+  #vignette { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(200,0,0,.55) 100%); }
+  .overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(8, 8, 14, .72); pointer-events: auto; }
+  .card { max-width: 620px; width: 90%; background: rgba(16, 18, 26, .92); border: 1px solid rgba(255, 210, 60, .35); border-radius: 14px; padding: 28px 32px; text-align: center; }
+  .card h1 { margin: 0 0 4px; font-size: 52px; letter-spacing: 4px; color: #ffd23c; }
+  .card h2 { margin: 0 0 10px; font-size: 26px; color: #fff; }
+  .card p { color: #d5dae2; line-height: 1.5; font-size: 15px; }
+  .card .tagline { color: #ffd98a; font-style: italic; }
+  button { pointer-events: auto; cursor: pointer; font: inherit; font-weight: 700; color: #14100a; background: #ffd23c; border: none; border-radius: 8px; padding: 12px 22px; margin: 6px 4px 0; }
+  button:hover { background: #ffe06a; }
+  button.secondary { background: #3a4150; color: #fff; }
+  button.secondary:hover { background: #4a5265; }
+  button:disabled { opacity: .45; cursor: default; }
+  .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; text-align: left; font-size: 14px; color: #cfd6de; margin: 12px 0; }
+  .controls b { color: #ffd98a; }
+  #mission-list { display: flex; flex-direction: column; }
+  .mission-item { text-align: left; background: #232936; color: #fff; }
+  .mission-item:hover { background: #2e3648; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.min.js" } }
+</script>
+</head>
+<body>
+<div id="game-root">
+  <canvas id="game" aria-label="Solmar Bay: an open-world crime game. Drive, steal cars, dodge the police and run missions across the city."></canvas>
+  <p id="status" role="status" aria-live="polite"></p>
+  <div id="hud">
+    <div id="vignette"></div>
+    <div id="top-left" class="panel">
+      <div id="cash">$0</div>
+      <div id="health-row"><div id="health-bar"><div id="health-fill"></div></div><span id="health-text">100</span></div>
+      <div id="district">Solmar Bay</div>
+    </div>
+    <div id="top-right" class="panel"><div id="stars">☆☆☆☆☆</div></div>
+    <div id="objective-wrap"><div id="objective"></div><div id="objective-dist"></div></div>
+    <div id="banner" class="hidden"></div>
+    <div id="subtitle" class="hidden"></div>
+    <canvas id="minimap" width="180" height="180"></canvas>
+    <div id="speed" class="hidden">0 km/h</div>
+    <div id="prompt"></div>
+    <div id="crosshair" class="hidden"></div>
+
+    <div id="title-screen" class="overlay">
+      <div class="card">
+        <h1>SOLMAR BAY</h1>
+        <p class="tagline">An open-world crime story — sun, sea, and the fastest getaway in the city.</p>
+        <p>Mara Voss came back to Solmar Bay broke. The rent is due, the cops are everywhere, and
+        Lena Marlowe has work that pays — if you can drive, steal, fight and outrun the whole city.
+        Six missions. One king to dethrone.</p>
+        <div class="controls">
+          <span><b>W A S D</b> — move / drive</span><span><b>Mouse drag</b> — look around</span>
+          <span><b>Shift</b> — run</span><span><b>Wheel</b> — zoom camera</span>
+          <span><b>E</b> — enter / exit car</span><span><b>Space</b> — jump / handbrake</span>
+          <span><b>Left click</b> — shoot (with pistol)</span><span><b>F</b> — punch</span>
+          <span><b>M</b> — missions</span><span><b>Esc</b> — pause</span>
+        </div>
+        <button id="start-btn">Start the story</button>
+        <button id="continue-btn" class="secondary hidden">Continue</button>
+        <p id="title-save"></p>
+      </div>
+    </div>
+
+    <div id="pause-menu" class="overlay hidden">
+      <div class="card">
+        <h2>Paused</h2>
+        <p>Solmar Bay waits for no one — except right now.</p>
+        <button id="resume-btn">Resume</button>
+        <button id="missions-btn" class="secondary">Missions</button>
+        <button id="save-btn" class="secondary">Save game</button>
+        <button id="restart-mission-btn" class="secondary">Restart mission</button>
+        <button id="mute-btn" class="secondary">Mute / unmute</button>
+        <button id="quit-btn" class="secondary">Quit to title</button>
+      </div>
+    </div>
+
+    <div id="mission-menu" class="overlay hidden">
+      <div class="card">
+        <h2>Missions</h2>
+        <p>Pick a job. The next one in the story is the one you have not finished yet.</p>
+        <div id="mission-list"></div>
+        <button id="missions-close" class="secondary">Close</button>
+      </div>
+    </div>
+
+    <div id="mission-complete" class="overlay hidden">
+      <div class="card">
+        <h2 id="complete-title">Mission complete</h2>
+        <p id="complete-reward"></p>
+        <p>The story continues — press M to pick the next job.</p>
+      </div>
+    </div>
+
+    <div id="mission-failed" class="overlay hidden">
+      <div class="card">
+        <h2 id="failed-title">Mission failed</h2>
+        <p id="failed-reason"></p>
+        <button id="retry-btn">Retry mission</button>
+        <button id="failed-roam-btn" class="secondary">Free roam</button>
+      </div>
+    </div>
+
+    <div id="ending-screen" class="overlay hidden">
+      <div class="card">
+        <h2>King of the Bay</h2>
+        <p>Kessler's limo is scrap metal, the cops lost your trail, and Solmar Bay is yours.
+        Every mission is done — the city is a playground now. Go drive into the sunset.</p>
+        <button id="ending-roam-btn">Keep playing</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
