@@ -1,7 +1,8 @@
-// The story of Mara Voss: six missions across Solmar Bay, from a first fare to the
-// King of the Bay. Each mission is a list of steps — go somewhere, steal a car, ram a
-// target, fight guards, pick something up, lose the cops — with a beacon marking the
-// current objective and a cash reward at the end.
+// The story of Mara Voss: eight missions across Solmar Bay, from a first fare to the
+// King of the Bay — plus a taxi chain and a timed street race after the finale.
+// Each mission is a list of steps — go somewhere, steal a car, ram a target, fight
+// guards, pick something up, lose the cops, run fares, beat a race clock — with a
+// beacon marking the current objective and a cash reward at the end.
 import * as THREE from 'three';
 import { CAR, WANTED } from './config.js';
 import { makeCar, driveStep } from './vehicles.js';
@@ -109,6 +110,29 @@ export const MISSIONS = [
       { type: 'goto', at: (G) => L(G).safehouse, text: 'Lay low at the safehouse' },
     ],
   },
+  {
+    id: 'taxi-driver', title: 'Taxi Driver', reward: 500,
+    briefing: [
+      ['Lena', 'The taxi rank needs a driver tonight. Three fares, three stops, no dawdling — the meter is running.'],
+      ['Mara', 'Three fares. I can drive. The hard part is the passengers.'],
+    ],
+    steps: [
+      { type: 'fare', count: 3, text: 'Run 3 taxi fares (press T near a waving passenger)' },
+    ],
+  },
+  {
+    id: 'sunset-grand-prix', title: 'Sunset Grand Prix', reward: 800,
+    briefing: [
+      ['Wrench', 'Street race at sunset, four checkpoints across the whole city. Beat the clock and the prize is yours.'],
+      ['Mara', 'Four checkpoints. One Comet. No brakes I cannot afford.'],
+    ],
+    steps: [
+      { type: 'race', checkpoints: [
+        { x: 203, z: 203, label: 'Marina' }, { x: -203, z: 203, label: 'Old Town' },
+        { x: -203, z: -203, label: 'Coral Hills' }, { x: 203, z: -203, label: 'Harbor' },
+      ], timeLimit: 150, text: 'Race through 4 checkpoints before the clock runs out' },
+    ],
+  },
 ];
 
 export function createMissions(G) {
@@ -119,10 +143,16 @@ export function createMissions(G) {
     done: new Set(G.saveData ? G.saveData.missionsDone : []),
     ramHits: 0, ramCooldown: 0, killsAtStart: 0,
     targetCar: null, targetHp: 0, driverLoop: null,
+    // Round 2: the taxi chain and the race keep their progress here.
+    faresAtStart: 0, raceIndex: 0, raceTimeLeft: 0,
   };
 
   function objectivePos(step) {
     if (step.type === 'ram' || step.type === 'destroy') return state.targetCar ? state.targetCar.pos : null;
+    // Round 2: a race checkpoint is the current objective; a taxi chain follows
+    // the live fare (or has no marker while no fare is running).
+    if (step.type === 'race') return step.checkpoints[state.raceIndex] || null;
+    if (step.type === 'fare') return G.activities ? G.activities.fareObjective() : null;
     if (!step.at) return state.targetCar ? state.targetCar.pos : null;
     const p = step.at(G);
     if (!p) return state.targetCar ? state.targetCar.pos : null;
@@ -147,7 +177,7 @@ export function createMissions(G) {
     car.isTarget = true;
     G.missionCars.push(car);
     state.targetCar = car;
-    state.targetHp = kind === 'van' ? 100 : 60;
+    state.targetHp = kind === 'van' || kind === 'limo' ? 100 : 60;
     state.driverLoop = loop;
     return car;
   }
@@ -173,7 +203,7 @@ export function createMissions(G) {
       ]);
     }
     if (step.type === 'destroy') {
-      spawnTargetCar('van', 0x111111, 203, -29, [
+      spawnTargetCar('limo', 0x111111, 203, -29, [
         { x: 203, z: -203 }, { x: -29, z: -203 }, { x: -29, z: 203 }, { x: 203, z: 203 },
       ]);
       G.police.addHeat(20);
@@ -187,8 +217,19 @@ export function createMissions(G) {
       state.killsAtStart = G.combat.guards.filter((g) => g.dead).length;
     }
     if (state.active.def.id === 'the-drop' && step.type === 'goto' && state.active.stepIndex === 0) {
-      G.player.state.hasPistol = true;
-      G.hud.banner('Lena gave you a pistol — Left Click to shoot');
+      G.player.givePistol();
+      G.hud.banner('Lena gave you a pistol — Left Click to shoot, R to reload');
+    }
+    // Round 2: a taxi chain starts from zero fares; a race starts its clock.
+    if (step.type === 'fare') {
+      state.faresAtStart = G.faresDone;
+      G.hud.banner('Find a waving passenger and press T — or just drive a taxi, fares come to you');
+    }
+    if (step.type === 'race') {
+      state.raceIndex = 0;
+      state.raceTimeLeft = step.timeLimit;
+      G.audio.beep(false);
+      G.hud.banner(`Sunset Grand Prix — ${step.checkpoints.length} checkpoints, ${step.timeLimit} seconds. Go!`);
     }
     const pos = objectivePos(step);
     beacon.group.visible = !!pos;
@@ -229,7 +270,10 @@ export function createMissions(G) {
     G.audio.sting();
     G.hud.missionComplete(def);
     G.save();
-    if (def.id === 'king-of-the-bay') G.hud.showEnding();
+    // Round 2: the ending only plays when every mission is done — the two new
+    // jobs sit after the finale in the list, so finishing Kessler alone is not
+    // the end of the story any more.
+    if (def.id === 'king-of-the-bay' && MISSIONS.every((m) => state.done.has(m.id))) G.hud.showEnding();
   }
 
   function fail(reason) {
@@ -328,6 +372,29 @@ export function createMissions(G) {
     } else if (step.type === 'kill') {
       const deadNow = G.combat.guards.filter((g) => g.dead).length;
       if (deadNow - state.killsAtStart >= step.count) nextStep();
+    } else if (step.type === 'fare') {
+      // Round 2: the taxi chain counts fares finished while the mission is live.
+      const done = G.faresDone - state.faresAtStart;
+      if (done >= step.count) nextStep();
+    } else if (step.type === 'race') {
+      // Round 2: a timed checkpoint race — reach each marker before the clock dies.
+      state.raceTimeLeft -= dt;
+      if (state.raceTimeLeft <= 0) { fail('The race clock ran out.'); return; }
+      const cp = step.checkpoints[state.raceIndex];
+      if (cp && dist < 10) {
+        state.raceIndex += 1;
+        G.audio.beep(state.raceIndex >= step.checkpoints.length);
+        if (state.raceIndex >= step.checkpoints.length) {
+          const ms = Math.round((step.timeLimit - state.raceTimeLeft) * 1000);
+          if (!G.bestRaceMs || ms < G.bestRaceMs) {
+            G.bestRaceMs = ms;
+            G.hud.banner(`New best race time — ${(ms / 1000).toFixed(1)}s!`);
+          }
+          nextStep();
+        } else {
+          G.hud.banner(`Checkpoint ${state.raceIndex} of ${step.checkpoints.length} — ${step.checkpoints[state.raceIndex].label}`);
+        }
+      }
     } else if (step.type === 'escape') {
       if (G.police.state.stars === 0) nextStep();
     }

@@ -19,6 +19,9 @@ import { createHud } from './hud.js';
 import { createStage } from './render.js';
 import { loadSave, saveGame } from './save.js';
 import { stageShot } from './shots.js';
+// Round 2: side activities (hidden packages, taxi fares) and the effects pool.
+import { createEffects } from './effects.js';
+import { createActivities } from './activities.js';
 
 const MAX_FRAME = 0.25;
 const params = new URLSearchParams(window.location.search);
@@ -41,18 +44,23 @@ const G = {
   missionCars: [],
   camFreeUntil: 0,
   screen: 'title',
+  // Round 2: free-roam progress that the save slot keeps.
+  faresDone: saveData ? saveData.faresDone : 0,
+  bestRaceMs: saveData ? saveData.bestRaceMs : 0,
 };
 G.audio = createAudio();
 G.audio.setMuted(G.muted);
 G.stage = createStage(canvas);
 G.scene = G.stage.scene;
 G.city = buildCity(G.scene, G.rng);
+G.effects = createEffects(G);
 G.traffic = createTraffic(G);
 G.peds = createPedestrians(G);
 G.player = createPlayer(G);
 G.police = createPolice(G);
 G.combat = createCombat(G);
 G.missions = createMissions(G);
+G.activities = createActivities(G);
 G.hud = createHud(G);
 G.hud.setSaveInfo(saveData);
 
@@ -62,6 +70,9 @@ G.save = function save() {
     missionsDone: [...G.missions.state.done],
     bestCash: G.bestCash,
     muted: G.muted,
+    packagesFound: [...G.activities.found],
+    faresDone: G.faresDone,
+    bestRaceMs: G.bestRaceMs,
   });
 };
 
@@ -110,6 +121,8 @@ const ACTION_PUNCH = 2;
 const ACTION_PAUSE = 4;
 const ACTION_MISSIONS = 8;
 const ACTION_CONFIRM = 16;
+const ACTION_RELOAD = 32;
+const ACTION_TAXI = 64;
 
 const KEYMAP = {
   KeyW: 'forward', ArrowUp: 'forward',
@@ -131,6 +144,8 @@ window.addEventListener('keydown', (event) => {
   if (event.code === 'KeyE') input.actions |= ACTION_ENTER_CAR;
   else if (event.code === 'KeyF') input.actions |= ACTION_PUNCH;
   else if (event.code === 'KeyM') input.actions |= ACTION_MISSIONS;
+  else if (event.code === 'KeyR') input.actions |= ACTION_RELOAD;
+  else if (event.code === 'KeyT') input.actions |= ACTION_TAXI;
   else if (event.code === 'Escape' || event.code === 'KeyP') input.actions |= ACTION_PAUSE;
   else if (event.code === 'Enter') input.actions |= ACTION_CONFIRM;
   else return;
@@ -268,6 +283,13 @@ G.update = function update(dt, driveInput) {
     };
     driveStep(G, car, di, dt);
     G.audio.engine(Math.min(1, Math.abs(car.speed) / 34), true);
+    // Round 2: handbrake turns kick up tire smoke and a squeal.
+    if (di.handbrake && Math.abs(car.speed) > 10 && G.rng() < 0.5) {
+      const bx = car.pos.x - Math.sin(car.heading) * 1.8;
+      const bz = car.pos.z - Math.cos(car.heading) * 1.8;
+      G.effects.tireSmoke(bx, 0.4, bz);
+      if (G.rng() < 0.1) G.audio.skid();
+    }
     // Keep the player's position in sync with the car: the HUD, the missions and the
     // police all read the player's position, on foot or behind the wheel.
     p.pos.x = car.pos.x;
@@ -319,6 +341,9 @@ G.update = function update(dt, driveInput) {
   G.police.update(dt);
   G.combat.update(dt);
   G.missions.update(dt);
+  // Round 2: side activities and the effects pool advance with the world.
+  G.activities.update(dt);
+  G.effects.update(dt);
 };
 
 function handleActions() {
@@ -359,6 +384,12 @@ function handleActions() {
     }
   }
   if (actions & ACTION_PUNCH) G.combat.punch();
+  if (actions & ACTION_RELOAD) G.player.reload();
+  // Round 2: T starts a taxi fare in free roam (or during the Taxi Driver mission).
+  if (actions & ACTION_TAXI) {
+    if (!G.activities.fare.active) G.activities.startFare();
+    else G.hud.banner('A fare is already running — finish it first.');
+  }
   if (input.shootHeld && p.hasPistol && !p.inCar) G.combat.shoot();
 }
 

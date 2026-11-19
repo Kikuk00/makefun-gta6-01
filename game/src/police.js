@@ -10,6 +10,32 @@ export function createPolice(G) {
   const cops = [];
   const state = { heat: 0, stars: 0, bustedTimer: 0, unseenFor: 0 };
 
+  // Round 2: the PD helicopter — a circling searchlight over the player at three
+  // stars and up, with a rotor you can hear. Built once, hidden until it is needed.
+  const heli = (() => {
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1, 4.2), new THREE.MeshLambertMaterial({ color: 0x1e3a6e }));
+    body.position.y = 0;
+    group.add(body);
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 3.4), new THREE.MeshLambertMaterial({ color: 0x1e3a6e }));
+    tail.position.set(0, 0.2, -3.4);
+    group.add(tail);
+    const rotor = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.08, 0.5), new THREE.MeshLambertMaterial({ color: 0x222222 }));
+    rotor.position.y = 0.8;
+    group.add(rotor);
+    const light = new THREE.Mesh(
+      new THREE.ConeGeometry(4, 26, 12, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    light.position.y = -13;
+    light.rotation.x = Math.PI;
+    group.add(light);
+    group.visible = false;
+    G.scene.add(group);
+    return { group, rotor, angle: 0 };
+  })();
+  let roadblock = null;
+
   function starsFor(heat) {
     return heat <= 0 ? 0 : Math.min(5, Math.ceil(heat / 20));
   }
@@ -60,7 +86,7 @@ export function createPolice(G) {
     const wantCars = state.stars === 0 ? 0 : Math.min(2 + state.stars, 6);
     while (cars.length < wantCars) spawnCruiser();
     while (cars.length > wantCars) {
-      const idx = cars.map((c) => !!c.driver).lastIndexOf(false);
+      const idx = cars.map((c) => !!c.driver || !!c.isRoadblock).lastIndexOf(false);
       if (idx === -1) break;
       const car = cars[idx];
       cars.splice(idx, 1);
@@ -90,7 +116,7 @@ export function createPolice(G) {
     // Cruisers: steer toward the player along the grid, ram the player's car.
     // A cruiser the player stole is theirs now — the police leave it alone.
     for (const car of cars) {
-      if (car.driver) continue;
+      if (car.driver || car.isRoadblock) continue;
       const guide = G.city.guidePoint(car.pos.x, car.pos.z, player.pos.x, player.pos.z, 24);
       const wantHeading = Math.atan2(guide.x - car.pos.x, guide.z - car.pos.z);
       let dh = wantHeading - car.heading;
@@ -144,9 +170,50 @@ export function createPolice(G) {
       state.bustedTimer = Math.max(0, state.bustedTimer - dt * 2);
     }
 
+    // Round 2: at three stars the helicopter circles overhead with its searchlight,
+    // and two cruisers park across the road ahead as a roadblock. Both clear when
+    // the heat drops below three stars.
+    const heliOn = state.stars >= 3;
+    heli.group.visible = heliOn;
+    G.audio.heli(heliOn, heliOn ? Math.max(0, 1 - near / 150) : 0);
+    if (heliOn) {
+      heli.angle += dt * 0.5;
+      heli.group.position.set(
+        player.pos.x + Math.sin(heli.angle) * 22,
+        34,
+        player.pos.z + Math.cos(heli.angle) * 22,
+      );
+      heli.group.rotation.y = heli.angle + Math.PI / 2;
+      heli.rotor.rotation.y += dt * 22;
+    }
+    if (state.stars >= 3 && !roadblock && player.inCar) {
+      const fx = Math.sin(player.inCar.heading);
+      const fz = Math.cos(player.inCar.heading);
+      const bx = player.pos.x + fx * 55;
+      const bz = player.pos.z + fz * 55;
+      const c1 = makeCar(G, 0x1a1a22, 'police', bx - fz * 3, bz + fx * 3, player.inCar.heading + Math.PI / 2);
+      const c2 = makeCar(G, 0x1a1a22, 'police', bx + fz * 3, bz - fx * 3, player.inCar.heading + Math.PI / 2);
+      c1.isPolice = true;
+      c2.isPolice = true;
+      c1.isRoadblock = true;
+      c2.isRoadblock = true;
+      c1.speed = 0;
+      c2.speed = 0;
+      roadblock = { cars: [c1, c2], until: G.time + 25 };
+      cars.push(c1, c2);
+    }
+    if (roadblock && (state.stars < 3 || G.time > roadblock.until)) {
+      for (const c of roadblock.cars) {
+        const i = cars.indexOf(c);
+        if (i >= 0) cars.splice(i, 1);
+        G.scene.remove(c.mesh.group);
+      }
+      roadblock = null;
+    }
+
     // Siren loudness follows the nearest cruiser.
     G.audio.siren(cars.length > 0, Math.max(0, 1 - near / 120));
   }
 
-  return { state, cars, cops, addHeat, update, nearestCopDist };
+  return { state, cars, cops, heli, addHeat, update, nearestCopDist };
 }

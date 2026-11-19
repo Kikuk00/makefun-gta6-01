@@ -46,6 +46,9 @@ createServer((request, response) => {
     response.writeHead(400).end('bad request');
     return;
   }
+  // Round 2: answer HEAD the same way as GET (headers, no body) so a browser or a
+  // screenshot tool can probe a file, and log each request with its status.
+  const isHead = request.method === 'HEAD';
   if (pathname.endsWith('/')) pathname += 'index.html';
   const file = resolve(join(root, normalize(pathname)));
   if (file !== root && !file.startsWith(root + sep)) {
@@ -66,7 +69,9 @@ createServer((request, response) => {
     'content-length': size,
     'cache-control': 'no-store',
   });
-  createReadStream(file).pipe(response);
+  console.log(`${request.method} ${pathname} 200 (${size} bytes)`);
+  if (isHead) response.end();
+  else createReadStream(file).pipe(response);
 }).listen(port, '127.0.0.1', () => {
   console.log(`game/ is on http://localhost:${port}`);
 });

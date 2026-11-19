@@ -30,20 +30,40 @@ export function clampToCity(pos, radius) {
   void radius;
 }
 
-// A car from boxes: body, cabin, wheels, headlights and tail lights. kind: 'sedan' | 'sport' | 'taxi' | 'police' | 'van'.
+// A car from boxes: body, cabin, wheels, headlights and tail lights. kind: 'sedan' |
+// 'sport' | 'taxi' | 'police' | 'van' | 'bus' | 'truck' | 'limo'.
 export function createCarMesh(color, kind = 'sedan') {
   const group = new THREE.Group();
   const bodyMat = new THREE.MeshLambertMaterial({ color });
   const glassMat = new THREE.MeshLambertMaterial({ color: 0x18242e });
   const darkMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(2, 0.62, kind === 'van' ? 5.4 : 4.4), bodyMat);
+  const long = kind === 'bus' ? 7.6 : kind === 'limo' ? 6.2 : kind === 'truck' ? 5.2 : kind === 'van' ? 5.4 : 4.4;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2, 0.62, long), bodyMat);
   body.position.y = 0.62;
   body.castShadow = true;
   group.add(body);
-  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.55, kind === 'van' ? 2.6 : 2.1), glassMat);
-  cabin.position.set(0, 1.18, kind === 'van' ? 0.4 : -0.2);
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.55, kind === 'van' ? 2.6 : kind === 'bus' ? 6.4 : kind === 'truck' ? 1.6 : 2.1), glassMat);
+  cabin.position.set(0, 1.18, kind === 'van' ? 0.4 : kind === 'truck' ? 1.4 : kind === 'bus' ? 0 : -0.2);
   cabin.castShadow = true;
   group.add(cabin);
+  if (kind === 'bus') {
+    // Roof sign and a stripe down the side, so it reads as a bus at a glance.
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.02, 0.3, 6.8), new THREE.MeshBasicMaterial({ color: 0xffd23c }));
+    stripe.position.set(0, 0.75, 0);
+    group.add(stripe);
+  }
+  if (kind === 'truck') {
+    // Open bed with a crate in it.
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.9, 1.6), new THREE.MeshLambertMaterial({ color: 0xb8442e }));
+    crate.position.set(0, 1.35, -1.2);
+    crate.castShadow = true;
+    group.add(crate);
+  }
+  if (kind === 'limo') {
+    const divider = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.5, 0.12), darkMat);
+    divider.position.set(0, 1.18, 0.6);
+    group.add(divider);
+  }
   if (kind === 'sport') {
     const spoiler = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.08, 0.4), darkMat);
     spoiler.position.set(0, 1.05, -2.1);
@@ -64,7 +84,8 @@ export function createCarMesh(color, kind = 'sedan') {
   }
   const wheelGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.28, 10);
   const wheels = [];
-  for (const [wx, wz] of [[-0.95, 1.45], [0.95, 1.45], [-0.95, -1.45], [0.95, -1.45]]) {
+  const wheelZ = kind === 'bus' || kind === 'limo' ? 2.6 : kind === 'truck' ? 1.9 : 1.45;
+  for (const [wx, wz] of [[-0.95, wheelZ], [0.95, wheelZ], [-0.95, -wheelZ], [0.95, -wheelZ]]) {
     const w = new THREE.Mesh(wheelGeo, darkMat);
     w.rotation.z = Math.PI / 2;
     w.position.set(wx, 0.36, wz);
@@ -73,12 +94,13 @@ export function createCarMesh(color, kind = 'sedan') {
     wheels.push(w);
   }
   const lightMat = new THREE.MeshBasicMaterial({ color: 0xfff2b0 });
+  const halfLen = long / 2 + 0.01;
   for (const lx of [-0.6, 0.6]) {
     const l = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.18, 0.1), lightMat);
-    l.position.set(lx, 0.72, 2.21);
+    l.position.set(lx, 0.72, halfLen);
     group.add(l);
     const t = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.18, 0.1), new THREE.MeshBasicMaterial({ color: 0xdd2222 }));
-    t.position.set(lx, 0.72, -2.21);
+    t.position.set(lx, 0.72, -halfLen);
     group.add(t);
   }
   return { group, wheels, body };
@@ -136,6 +158,17 @@ export function driveStep(G, car, input, dt) {
   car.mesh.group.position.copy(car.pos);
   car.mesh.group.rotation.y = car.heading;
   for (const w of car.mesh.wheels) w.rotation.x += car.speed * dt * 2.8;
+  // Round 2: a wrecked car smokes, and a hard launch puffs exhaust — the damage you
+  // can see, not just a number on the HUD.
+  if (G.effects) {
+    if (car.damage > 60 && Math.abs(car.speed) > 2 && G.rng() < 0.35) {
+      G.effects.tireSmoke(car.pos.x, 1.2, car.pos.z);
+    } else if (input.throttle > 0.8 && Math.abs(car.speed) < 6 && G.rng() < 0.2) {
+      const bx = car.pos.x - Math.sin(car.heading) * 2.2;
+      const bz = car.pos.z - Math.cos(car.heading) * 2.2;
+      G.effects.exhaust(bx, 0.5, bz);
+    }
+  }
   return hit;
 }
 
@@ -143,8 +176,8 @@ export function createTraffic(G) {
   const cars = [];
   for (let i = 0; i < TRAFFIC_COUNT; i += 1) {
     const p = G.city.randomRoadPoint();
-    const kind = pick(G.rng, ['sedan', 'sedan', 'sedan', 'taxi', 'van', 'sport']);
-    const color = kind === 'taxi' ? 0xe8c832 : pick(G.rng, PALETTE.car);
+    const kind = pick(G.rng, ['sedan', 'sedan', 'sedan', 'taxi', 'van', 'sport', 'bus', 'truck', 'sedan', 'taxi']);
+    const color = kind === 'taxi' ? 0xe8c832 : kind === 'bus' ? 0x2e6f8a : pick(G.rng, PALETTE.car);
     const heading = G.rng() < 0.5 ? 0 : Math.PI / 2;
     const car = makeCar(G, color, kind, p.x, p.z, heading);
     car.speed = range(G.rng, 7, 11);

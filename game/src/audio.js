@@ -13,6 +13,8 @@ export function createAudio() {
   let sirenHigh = false;
   let sirenTimer = null;
   let musicStep = 0;
+  let heliOsc = null;
+  let heliGain = null;
 
   function ensure() {
     if (ctx) return true;
@@ -153,5 +155,28 @@ export function createAudio() {
     sting() { [440, 554, 659, 880].forEach((f, i) => window.setTimeout(() => blip(f, 0.22, 'triangle', 0.14), i * 110)); },
     fail() { [330, 262, 196].forEach((f, i) => window.setTimeout(() => blip(f, 0.25, 'sawtooth', 0.1), i * 140)); },
     busted() { blip(520, 0.4, 'square', 0.12, 380); },
+    // Round 2: taxi bell, race countdown beep, reload click, skid squeal, and the
+    // helicopter's rotor chop (a low pulsing noise loop while it is overhead).
+    ding() { blip(1175, 0.18, 'sine', 0.14); window.setTimeout(() => blip(1568, 0.22, 'sine', 0.12), 120); },
+    beep(final) { blip(final ? 880 : 440, final ? 0.3 : 0.12, 'square', 0.14); },
+    reload() { blip(300, 0.05, 'square', 0.12); window.setTimeout(() => blip(420, 0.05, 'square', 0.12), 90); },
+    skid() { noiseBurst(0.3, 0.22, 2500, 'bandpass'); },
+    heli(on, vol) {
+      if (!ensure()) return;
+      if (on && !heliOsc) {
+        heliOsc = ctx.createOscillator();
+        heliOsc.type = 'square';
+        heliOsc.frequency.value = 13;
+        heliGain = ctx.createGain();
+        heliGain.gain.value = 0;
+        const filt = ctx.createBiquadFilter();
+        filt.type = 'lowpass';
+        filt.frequency.value = 220;
+        heliOsc.connect(filt).connect(heliGain).connect(master);
+        heliOsc.start();
+      }
+      if (heliGain) heliGain.gain.value = on ? Math.min(0.16, vol * 0.16) : 0;
+      if (!on && heliOsc) { try { heliOsc.stop(); } catch {} heliOsc = null; heliGain = null; }
+    },
   };
 }

@@ -1,7 +1,10 @@
 // The HUD: cash and health, wanted stars, the mission objective, a live minimap, the
 // speedometer, context prompts, story subtitles, and every menu (title, pause, mission
-// list, mission complete / failed, ending). All DOM; the 3D view stays a plain canvas.
-import { districtAt } from './config.js';
+// list, mission complete / failed, ending). Round 2 adds a mission tracker with the
+// step count, a race/fare timer, an ammo counter, the car you are driving with its
+// damage, a sprint stamina bar and a hidden-package count. All DOM; the 3D view
+// stays a plain canvas.
+import { districtAt, clockString, CAR_NAMES, PACKAGE_COUNT } from './config.js';
 import { MISSIONS } from './missions.js';
 
 export function createHud(G) {
@@ -18,6 +21,9 @@ export function createHud(G) {
     failedTitle: $('failed-title'), failedReason: $('failed-reason'),
     missionList: $('mission-list'), startBtn: $('start-btn'), continueBtn: $('continue-btn'),
     titleSave: $('title-save'),
+    // Round 2 elements.
+    missionTitle: $('mission-title'), timer: $('timer'), ammo: $('ammo'),
+    vehicle: $('vehicle'), staminaFill: $('stamina-fill'), packages: $('packages'),
   };
   const mapCtx = els.minimap.getContext('2d');
   let bannerUntil = 0;
@@ -42,6 +48,14 @@ export function createHud(G) {
 
   function showBriefing(def) {
     subtitleQueue = def.briefing.map(([who, line]) => ({ who, line }));
+  }
+
+  // Round 2: skip the briefing subtitles — the staged screenshots use this so the
+  // story text does not cover the middle of the frame; real play still shows it.
+  function clearSubtitles() {
+    subtitleQueue = [];
+    els.subtitle.classList.add('hidden');
+    subtitleUntil = 0;
   }
 
   function missionComplete(def) {
@@ -82,27 +96,29 @@ export function createHud(G) {
   }
 
   function drawMinimap() {
-    const W = 180;
-    const H = 180;
+    const W = 200;
+    const H = 200;
     const scale = W / 680;
     const ox = 340 * scale;
     const oz = 340 * scale;
     const X = (x) => ox + x * scale;
     const Z = (z) => oz + z * scale;
-    mapCtx.fillStyle = '#0d1b26';
+    // Round 2: a brighter map — pale roads on a dark blue-green sea, so it reads
+    // at a glance even when the contact sheet shrinks it.
+    mapCtx.fillStyle = '#12283a';
     mapCtx.fillRect(0, 0, W, H);
     // Water: south and west edges.
     mapCtx.fillStyle = '#1f7fa8';
     mapCtx.fillRect(0, Z(330), W, H - Z(330));
     mapCtx.fillRect(0, 0, X(-292), H);
     // Blocks.
-    mapCtx.fillStyle = '#2a2f38';
+    mapCtx.fillStyle = '#3a4552';
     for (const c of G.city.colliders) {
       mapCtx.fillRect(X(c.minX), Z(c.minZ), (c.maxX - c.minX) * scale, (c.maxZ - c.minZ) * scale);
     }
     // Roads.
-    mapCtx.strokeStyle = '#5a6068';
-    mapCtx.lineWidth = 2;
+    mapCtx.strokeStyle = '#8a929c';
+    mapCtx.lineWidth = 2.5;
     for (const s of G.city.streets) {
       mapCtx.beginPath(); mapCtx.moveTo(X(s), Z(-290)); mapCtx.lineTo(X(s), Z(290)); mapCtx.stroke();
       mapCtx.beginPath(); mapCtx.moveTo(X(-290), Z(s)); mapCtx.lineTo(X(290), Z(s)); mapCtx.stroke();
@@ -113,10 +129,28 @@ export function createHud(G) {
     mapCtx.font = 'bold 11px sans-serif';
     mapCtx.fillText('H', X(sh.x) - 3, Z(sh.z) + 4);
     // Traffic dots.
-    mapCtx.fillStyle = '#9aa2ac';
+    mapCtx.fillStyle = '#c8ced6';
     for (const car of G.traffic.cars) {
       if (car.dead) continue;
-      mapCtx.fillRect(X(car.pos.x) - 1, Z(car.pos.z) - 1, 2, 2);
+      mapCtx.fillRect(X(car.pos.x) - 1, Z(car.pos.z) - 1, 2.5, 2.5);
+    }
+    // Round 2: hidden packages as gold dots, the taxi fare as a green diamond,
+    // and the helicopter as a big flashing blip.
+    if (G.activities) {
+      mapCtx.fillStyle = '#ffd23c';
+      for (const pkg of G.activities.packages) {
+        if (pkg.taken) continue;
+        mapCtx.beginPath(); mapCtx.arc(X(pkg.x), Z(pkg.z), 2, 0, 7); mapCtx.fill();
+      }
+      const f = G.activities.fareObjective();
+      if (f && G.activities.fare.active) {
+        mapCtx.fillStyle = '#2ed2a0';
+        mapCtx.beginPath(); mapCtx.arc(X(f.x), Z(f.z), 3.5, 0, 7); mapCtx.fill();
+      }
+    }
+    if (G.police.heli && G.police.heli.group.visible) {
+      mapCtx.fillStyle = Math.floor(G.time * 4) % 2 === 0 ? '#ff4040' : '#ffffff';
+      mapCtx.beginPath(); mapCtx.arc(X(G.police.heli.group.position.x), Z(G.police.heli.group.position.z), 4, 0, 7); mapCtx.fill();
     }
     // Police blips (flashing).
     if (Math.floor(G.time * 3) % 2 === 0) mapCtx.fillStyle = '#ff4040';
@@ -174,6 +208,42 @@ export function createHud(G) {
       els.objective.textContent = G.missions.nextAvailable() >= 0 ? 'Free roam — press M for missions' : 'All missions complete. Solmar Bay is yours.';
       els.objectiveDist.textContent = '';
       lastObjective = '';
+    }
+    // Round 2: mission tracker (title + step x of y), the race / fare clock, the
+    // ammo counter, the car line with damage, stamina, and the package count.
+    const active = G.missions.state.active;
+    if (els.missionTitle) {
+      els.missionTitle.textContent = active
+        ? `${active.def.title}  •  step ${active.stepIndex + 1}/${active.def.steps.length}`
+        : (G.missions.nextAvailable() >= 0 ? 'Free roam' : 'King of the Bay');
+    }
+    if (els.timer) {
+      let t = '';
+      if (active && active.def.steps[active.stepIndex] && active.def.steps[active.stepIndex].type === 'race') {
+        t = `⏱ ${clockString(G.missions.state.raceTimeLeft)}`;
+      } else if (G.activities && G.activities.fare.active) {
+        t = `🚕 ${clockString(G.activities.fare.timeLeft)}`;
+      }
+      els.timer.textContent = t;
+      els.timer.classList.toggle('hidden', !t);
+    }
+    if (els.ammo) {
+      els.ammo.textContent = p.hasPistol ? `🔫 ${p.ammo} / ${p.ammoMax}` : '';
+      els.ammo.classList.toggle('hidden', !p.hasPistol);
+    }
+    if (els.vehicle) {
+      if (p.inCar) {
+        const name = CAR_NAMES[p.inCar.kind] || 'Car';
+        const dmg = Math.max(0, Math.round(100 - p.inCar.damage));
+        els.vehicle.textContent = `${name}  •  condition ${dmg}%`;
+        els.vehicle.classList.remove('hidden');
+      } else {
+        els.vehicle.classList.add('hidden');
+      }
+    }
+    if (els.staminaFill) els.staminaFill.style.width = `${Math.round(p.stamina)}%`;
+    if (els.packages && G.activities) {
+      els.packages.textContent = `📦 ${G.activities.found.size}/${PACKAGE_COUNT} packages`;
     }
     if (G.time > bannerUntil) els.banner.classList.add('hidden');
     if (subtitleQueue.length > 0 && G.time > subtitleUntil) {
@@ -236,7 +306,7 @@ export function createHud(G) {
 
   return {
     update, banner, showBriefing, missionComplete, missionFailed, showEnding,
-    flashDamage, shake, setPrompt, showOnly, buildMissionList,
+    flashDamage, shake, setPrompt, showOnly, buildMissionList, clearSubtitles,
     set onAction(fn) { onAction = fn; },
     setSaveInfo(save) {
       if (save && save.cash > 0) {

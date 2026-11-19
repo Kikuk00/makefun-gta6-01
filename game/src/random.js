@@ -17,3 +17,18 @@ export function pick(rng, list) {
 export function range(rng, min, max) {
   return min + rng() * (max - min);
 }
+
+// Round 2: shuffle a list in place with the seeded generator, so the taxi fares and
+// the hidden packages come in a different order every seed but the same order per seed.
+export function shuffle(rng, list) {
+  for (let i = list.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rng() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  return list;
+}
+
+// Round 2: pick n distinct items from a list, in seeded order.
+export function sample(rng, list, n) {
+  return shuffle(rng, [...list]).slice(0, Math.min(n, list.length));
+}

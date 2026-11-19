@@ -51,6 +51,11 @@ export function createPlayer(G) {
     walkPhase: 0,
     moving: false,
     hasPistol: false,
+    // Round 2: a pistol magazine (12 rounds, R to reload) and a sprint stamina bar
+    // that drains while running and refills while walking.
+    ammo: 0,
+    ammoMax: 12,
+    stamina: 100,
     lastDamageAt: -10,
   };
 
@@ -80,7 +85,11 @@ export function createPlayer(G) {
     if (input.right) mx += 1;
     const len = Math.hypot(mx, mz);
     state.moving = len > 0;
-    const speed = input.run ? PLAYER.runSpeed : PLAYER.walkSpeed;
+    const running = input.run && state.stamina > 0;
+    const speed = running ? PLAYER.runSpeed : PLAYER.walkSpeed;
+    // Round 2: sprint stamina — running drains it, walking or standing refills it.
+    if (running && len > 0) state.stamina = Math.max(0, state.stamina - 14 * dt);
+    else state.stamina = Math.min(100, state.stamina + 10 * dt);
     if (len > 0) {
       mx /= len;
       mz /= len;
@@ -140,6 +149,21 @@ export function createPlayer(G) {
     void fromZ;
   }
 
+  // Round 2: reload the pistol magazine (R). A dry click costs a moment, not a life.
+  function reload() {
+    if (!state.hasPistol || state.ammo >= state.ammoMax) return false;
+    state.ammo = state.ammoMax;
+    G.audio.reload();
+    G.hud.banner('Reloaded — 12 rounds');
+    return true;
+  }
+
+  // Round 2: arm the player with a full magazine (Lena's pistol, mission 4).
+  function givePistol() {
+    state.hasPistol = true;
+    state.ammo = state.ammoMax;
+  }
+
   function nearestCar(maxDist) {
     let best = null;
     let bestD = maxDist;
@@ -177,5 +201,5 @@ export function createPlayer(G) {
     mesh.group.position.copy(state.pos);
   }
 
-  return { state, update, damage, nearestCar, enterCar, exitCar };
+  return { state, update, damage, nearestCar, enterCar, exitCar, reload, givePistol };
 }

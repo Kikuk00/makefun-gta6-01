@@ -21,6 +21,7 @@
   #district { font-size: 13px; color: #ffd98a; margin-top: 4px; }
   #top-right { position: absolute; top: 14px; right: 14px; text-align: right; }
   #stars { font-size: 26px; letter-spacing: 4px; color: #cfd6de; }
+  #wanted-label { font-size: 11px; letter-spacing: 3px; color: #ffd98a; margin-top: 2px; }
   #stars.hot { color: #ffd23c; animation: blink .7s steps(2) infinite; }
   @keyframes blink { 50% { opacity: .45; } }
   #objective-wrap { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); text-align: center; max-width: 560px; }
@@ -28,9 +29,18 @@
   #objective-dist { font-size: 13px; color: #ffd98a; }
   #banner { position: absolute; top: 84px; left: 50%; transform: translateX(-50%); font-size: 18px; font-weight: 700; color: #ffe9a8; background: rgba(10,12,18,.6); padding: 8px 16px; border-radius: 8px; }
   #subtitle { position: absolute; bottom: 150px; left: 50%; transform: translateX(-50%); max-width: 640px; text-align: center; font-size: 17px; background: rgba(0,0,0,.55); padding: 8px 14px; border-radius: 8px; }
-  #minimap { position: absolute; left: 14px; bottom: 14px; width: 180px; height: 180px; border: 2px solid rgba(255,255,255,.35); border-radius: 50%; background: #0d1b26; }
+  #minimap { position: absolute; left: 14px; bottom: 14px; width: 200px; height: 200px; border: 2px solid rgba(255,255,255,.45); border-radius: 50%; background: #12283a; }
   #speed { position: absolute; right: 18px; bottom: 18px; font-size: 26px; font-weight: 800; }
   #prompt { position: absolute; right: 18px; bottom: 58px; font-size: 15px; font-weight: 600; color: #ffe9a8; }
+  /* Round 2 HUD: mission tracker, timer, ammo, car line, stamina, packages. */
+  #mission-title { font-size: 13px; font-weight: 700; color: #ffd23c; margin-top: 4px; letter-spacing: .5px; }
+  #stamina-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+  #stamina-bar { width: 150px; height: 6px; background: rgba(0,0,0,.6); border-radius: 3px; overflow: hidden; }
+  #stamina-fill { height: 100%; width: 100%; background: #7dd8ff; }
+  #packages { font-size: 13px; color: #ffd98a; margin-top: 4px; }
+  #timer { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); font-size: 24px; font-weight: 800; color: #ffd23c; background: rgba(10,12,18,.6); padding: 4px 14px; border-radius: 8px; }
+  #ammo { position: absolute; right: 18px; bottom: 92px; font-size: 18px; font-weight: 800; }
+  #vehicle { position: absolute; right: 18px; bottom: 122px; font-size: 14px; font-weight: 700; color: #cfe8ff; }
   #crosshair { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; }
   #crosshair::before, #crosshair::after { content: ""; position: absolute; background: #fff; }
   #crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
@@ -66,13 +76,19 @@
     <div id="top-left" class="panel">
       <div id="cash">$0</div>
       <div id="health-row"><div id="health-bar"><div id="health-fill"></div></div><span id="health-text">100</span></div>
+      <div id="stamina-row"><div id="stamina-bar"><div id="stamina-fill"></div></div><span>SPRINT</span></div>
       <div id="district">Solmar Bay</div>
+      <div id="mission-title">Free roam</div>
+      <div id="packages">📦 0/18 packages</div>
     </div>
-    <div id="top-right" class="panel"><div id="stars">☆☆☆☆☆</div></div>
+    <div id="top-right" class="panel"><div id="stars">☆☆☆☆☆</div><div id="wanted-label">WANTED</div></div>
     <div id="objective-wrap"><div id="objective"></div><div id="objective-dist"></div></div>
+    <div id="timer" class="hidden"></div>
+    <div id="vehicle" class="hidden"></div>
+    <div id="ammo" class="hidden"></div>
     <div id="banner" class="hidden"></div>
     <div id="subtitle" class="hidden"></div>
-    <canvas id="minimap" width="180" height="180"></canvas>
+    <canvas id="minimap" width="200" height="200"></canvas>
     <div id="speed" class="hidden">0 km/h</div>
     <div id="prompt"></div>
     <div id="crosshair" class="hidden"></div>
@@ -83,12 +99,13 @@
         <p class="tagline">An open-world crime story — sun, sea, and the fastest getaway in the city.</p>
         <p>Mara Voss came back to Solmar Bay broke. The rent is due, the cops are everywhere, and
         Lena Marlowe has work that pays — if you can drive, steal, fight and outrun the whole city.
-        Six missions. One king to dethrone.</p>
+        Eight missions, taxi fares, a sunset street race and 18 hidden packages. One king to dethrone.</p>
         <div class="controls">
           <span><b>W A S D</b> — move / drive</span><span><b>Mouse drag</b> — look around</span>
-          <span><b>Shift</b> — run</span><span><b>Wheel</b> — zoom camera</span>
+          <span><b>Shift</b> — run (stamina)</span><span><b>Wheel</b> — zoom camera</span>
           <span><b>E</b> — enter / exit car</span><span><b>Space</b> — jump / handbrake</span>
           <span><b>Left click</b> — shoot (with pistol)</span><span><b>F</b> — punch</span>
+          <span><b>R</b> — reload pistol</span><span><b>T</b> — start a taxi fare</span>
           <span><b>M</b> — missions</span><span><b>Esc</b> — pause</span>
         </div>
         <button id="start-btn">Start the story</button>

@@ -27,18 +27,33 @@ export const PLAYER = {
 };
 
 export const CAR = {
-  accel: 16,
-  brake: 30,
-  reverseAccel: 10,
-  maxSpeed: 34,
-  maxReverse: 10,
-  steer: 1.9,
+  accel: 17,
+  brake: 32,
+  reverseAccel: 11,
+  maxSpeed: 38,
+  maxReverse: 11,
+  steer: 2.0,
   grip: 8,
   radius: 1.7,
 };
 
-export const TRAFFIC_COUNT = 22;
-export const PED_COUNT = 28;
+// Round 2: a busier city, a faster top end, and the new systems' tuning.
+export const TRAFFIC_COUNT = 38;
+export const PED_COUNT = 52;
+export const PACKAGE_COUNT = 18;
+export const PACKAGE_REWARD = 50;
+export const TAXI_FARE_MIN = 80;
+export const TAXI_FARE_MAX = 160;
+export const TAXI_TIME_LIMIT = 75;
+export const HELI_STARS = 3;
+export const ROADBLOCK_STARS = 3;
+export const RACE_CHECKPOINTS = 4;
+
+// Vehicle display names, for the HUD's "in car" line.
+export const CAR_NAMES = {
+  sedan: 'Bay Sedan', sport: 'Comet GT', taxi: 'Solmar Taxi', police: 'PD Cruiser',
+  van: 'Work Van', bus: 'Bay Bus', truck: 'Dune Truck', limo: 'Kessler Limo',
+};
 
 export const WANTED = {
   stealCar: 25,
@@ -48,6 +63,9 @@ export const WANTED = {
   ramCop: 20,
   decayPerSec: 2.5,
   maxHeat: 100,
+  // Round 2: the heat needed for each escalation the police bring.
+  heliHeat: 55, // three stars: the PD helicopter joins the chase
+  roadblockHeat: 55, // three stars: cruisers block the road ahead
 };
 
 export const PALETTE = {
@@ -73,4 +91,10 @@ export function districtAt(x, z) {
   if (z < -150) return 'Coral Hills';
   if (Math.abs(x) < 120 && z > -180 && z < 60) return 'Downtown';
   return 'Solmar Bay';
+}
+
+// Round 2: a short clock string for the race / fare timers ("1:23").
+export function clockString(seconds) {
+  const s = Math.max(0, Math.ceil(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }

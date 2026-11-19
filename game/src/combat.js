@@ -16,9 +16,19 @@ export function createCombat(G) {
     mesh.group.children[0].material = new THREE.MeshLambertMaterial({ color: 0x3a2e22 });
     mesh.group.position.set(x, 0, z);
     G.scene.add(mesh.group);
+    // Round 2: a health bar over each guard, so a firefight reads at a glance.
+    // It lives in its own sub-group, re-aimed at the camera every frame.
+    const barGroup = new THREE.Group();
+    barGroup.position.y = 2.15;
+    const barBg = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.12), new THREE.MeshBasicMaterial({ color: 0x222222, transparent: true, opacity: 0.7 }));
+    barGroup.add(barBg);
+    const barFg = new THREE.Mesh(new THREE.PlaneGeometry(1.05, 0.08), new THREE.MeshBasicMaterial({ color: 0xff5a4a }));
+    barFg.position.z = 0.01;
+    barGroup.add(barFg);
+    mesh.group.add(barGroup);
     const guard = {
       mesh, pos: mesh.group.position, heading: 0, hp: 100,
-      shootTimer: 1 + G.rng() * 2, dead: false, walkPhase: 0,
+      shootTimer: 1 + G.rng() * 2, dead: false, walkPhase: 0, barFg, barGroup,
     };
     guards.push(guard);
     return guard;
@@ -66,8 +76,21 @@ export function createCombat(G) {
   function shoot() {
     const player = G.player.state;
     if (fireCooldown > 0 || player.inCar) return;
+    // Round 2: a magazine of 12 — an empty gun clicks instead of firing.
+    if (player.ammo <= 0) {
+      fireCooldown = 0.3;
+      G.audio.reload();
+      G.hud.banner('Empty — press R to reload');
+      return;
+    }
     fireCooldown = PLAYER.fireInterval;
+    player.ammo -= 1;
     G.audio.shot();
+    if (G.effects) {
+      const mx = player.pos.x + Math.sin(player.heading) * 0.9;
+      const mz = player.pos.z + Math.cos(player.heading) * 0.9;
+      G.effects.muzzleFlash(mx, 1.4, mz);
+    }
     const from = { x: player.pos.x, y: 1.5, z: player.pos.z };
     const dir = { x: Math.sin(player.heading), z: Math.cos(player.heading) };
     const hit = rayHit(from, dir, 60, guards);
@@ -79,6 +102,11 @@ export function createCombat(G) {
     showTracer(from, end);
     if (hit.target) {
       hit.target.hp -= PLAYER.pistolDamage;
+      if (G.effects) G.effects.crashSparks(end.x, 1.4, end.z);
+      if (hit.target.barFg) {
+        hit.target.barFg.scale.x = Math.max(0, hit.target.hp / 100);
+        hit.target.barFg.position.x = -(1 - Math.max(0, hit.target.hp / 100)) * 0.52;
+      }
       if (hit.target.hp <= 0) {
         hit.target.dead = true;
         hit.target.mesh.group.rotation.x = -Math.PI / 2 + 0.15;
@@ -131,6 +159,12 @@ export function createCombat(G) {
     const player = G.player.state;
     for (const guard of guards) {
       if (guard.dead) continue;
+      // Round 2: health bars always face the camera.
+      if (guard.barGroup) {
+        const q = new THREE.Quaternion();
+        guard.mesh.group.getWorldQuaternion(q);
+        guard.barGroup.quaternion.copy(q.invert()).multiply(G.stage.camera.quaternion);
+      }
       const dx = player.pos.x - guard.pos.x;
       const dz = player.pos.z - guard.pos.z;
       const d = Math.hypot(dx, dz);

@@ -9,7 +9,7 @@
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
@@ -21,6 +21,18 @@ mkdirSync(out, { recursive: true });
 cpSync(join(here, 'game'), join(out, 'game'), { recursive: true });
 mkdirSync(join(out, 'screenshots'), { recursive: true });
 if (existsSync(join(here, 'screenshots'))) cpSync(join(here, 'screenshots'), join(out, 'screenshots'), { recursive: true });
+
+// Round 2: refuse to hand in a broken entry instead of writing a dossier for it —
+// the gate allows at most 4 screenshots, each at most 256 KiB, and game/index.html
+// must be there; failing here, loudly, beats a silent invalid grade.
+const shots = existsSync(join(here, 'screenshots'))
+  ? readdirSync(join(here, 'screenshots')).filter((f) => !f.startsWith('.'))
+  : [];
+if (shots.length < 3 || shots.length > 4) throw new Error(`expected 3 or 4 screenshots, found ${shots.length}`);
+for (const shot of shots) {
+  if (statSync(join(here, 'screenshots', shot)).size > 262144) throw new Error(`screenshot ${shot} is over 256 KiB`);
+}
+if (!existsSync(join(here, 'game', 'index.html'))) throw new Error('game/index.html is missing');
 
 // The scorer's own caps (reference/gate.json): only text_max_bytes shapes the bytes; the
 // others refuse an entry the scorer would refuse (more than 4 screenshots or one over

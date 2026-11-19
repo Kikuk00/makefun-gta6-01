@@ -12,6 +12,9 @@ export function createPedMesh(rng) {
   const shirt = new THREE.MeshLambertMaterial({ color: pick(rng, SHIRTS) });
   const skin = new THREE.MeshLambertMaterial({ color: pick(rng, SKINS) });
   const pants = new THREE.MeshLambertMaterial({ color: pick(rng, [0x2e3a4a, 0x4a3a2e, 0x3a3a3a]) });
+  // Round 2: bodies vary — taller, shorter, a sun hat or a cap — so a crowd does not
+  // read as one person cloned thirty times.
+  const tall = range(rng, 0.88, 1.12);
   const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.7, 0.32), shirt);
   torso.position.y = 1.05;
   torso.castShadow = true;
@@ -20,6 +23,22 @@ export function createPedMesh(rng) {
   head.position.y = 1.62;
   head.castShadow = true;
   group.add(head);
+  if (rng() < 0.3) {
+    // A sun hat or a cap.
+    const hat = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.26, 0.3, 0.1, 8),
+      new THREE.MeshLambertMaterial({ color: pick(rng, [0xe8d8a0, 0x2e2e2e, 0xd23c2e]) }),
+    );
+    hat.position.y = 1.84;
+    group.add(hat);
+  }
+  if (rng() < 0.25) {
+    // A shopping bag in one hand.
+    const bag = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.34, 0.12), new THREE.MeshLambertMaterial({ color: pick(rng, [0xd2a02e, 0x2e6fb8, 0x8a2e5a]) }));
+    bag.position.set(0.48, 0.7, 0);
+    group.add(bag);
+  }
+  group.scale.y = tall;
   const legL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.7, 0.22), pants);
   legL.position.set(-0.15, 0.35, 0);
   group.add(legL);
@@ -49,7 +68,7 @@ export function createPedestrians(G) {
       heading: range(G.rng, 0, Math.PI * 2),
       speed: range(G.rng, 1, 1.8),
       walkPhase: range(G.rng, 0, 6),
-      target: null, down: 0, scared: 0, dead: false,
+      target: null, down: 0, scared: 0, dead: false, fare: false,
     });
   }
 
@@ -81,6 +100,13 @@ export function createPedestrians(G) {
         }
       }
       if (ped.scared > 0) ped.scared -= dt;
+      // Round 2: a taxi passenger waits where the fare put them, waving, instead of
+      // wandering off down the street.
+      if (ped.fare) {
+        ped.mesh.armR.rotation.x = -2.4 + Math.sin(G.time * 6) * 0.4;
+        ped.mesh.group.rotation.y = ped.heading;
+        continue;
+      }
       if (!ped.target) pickTarget(ped);
       const dx = ped.target.x - ped.pos.x;
       const dz = ped.target.z - ped.pos.z;

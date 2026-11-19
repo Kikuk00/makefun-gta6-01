@@ -34,6 +34,25 @@ function facadeTexture(rng, base, lit) {
   return tex;
 }
 
+// Round 2: painted shop and billboard signs — canvas textures with the city's own
+// names on them, so streets read as places instead of blank walls.
+function signTexture(text, bg, fg) {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = bg;
+  g.fillRect(0, 0, 512, 128);
+  g.fillStyle = fg;
+  g.font = 'bold 56px system-ui, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(text, 256, 68);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function box(w, h, d, material, x, y, z, group, shadow = true) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
   m.position.set(x, y, z);
@@ -247,6 +266,53 @@ export function buildCity(scene, rng) {
     bulbs.setMatrixAt(i, dummy.matrix);
   });
   group.add(poles, bulbs);
+
+  // Round 2 street life: zebra crossings at the Downtown intersections, shop signs
+  // over the named places, a big SOLMAR BAY billboard on the beach road, beach
+  // umbrellas on the sand and bus-stop shelters on the main streets.
+  const crossMat = new THREE.MeshBasicMaterial({ color: 0xe8e8e8 });
+  for (const sx of [29, 87]) {
+    for (const sz of [29, 87]) {
+      for (let i = -2; i <= 2; i += 1) {
+        const stripe = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 5), crossMat);
+        stripe.rotation.x = -Math.PI / 2;
+        stripe.position.set(sx + i * 2.2, 0.05, sz - 8);
+        group.add(stripe);
+      }
+    }
+  }
+  function sign(text, bg, fg, x, y, z, w, ry) {
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(w, w / 4),
+      new THREE.MeshBasicMaterial({ map: signTexture(text, bg, fg) }),
+    );
+    m.position.set(x, y, z);
+    m.rotation.y = ry;
+    group.add(m);
+  }
+  sign('CAFE AZUL', '#1e5a8a', '#ffd98a', -174, 7.5, 116, 18, 0);
+  sign('SOLMAR MOTORS', '#8a2e3a', '#ffffff', 58, 9, -40, 26, Math.PI / 2);
+  sign("WRENCH'S GARAGE", '#3a3f46', '#ffd23c', 232, 8, 76, 24, -Math.PI / 2);
+  sign('SOLMAR BAY', '#d23c2e', '#fff2b0', 0, 16, 261, 44, 0);
+  sign('HARBOR DOCKS', '#2e6f5a', '#ffffff', 232, 9, -40, 24, -Math.PI / 2);
+  const umbrellaMat = new THREE.MeshLambertMaterial({ color: 0xd23c2e });
+  const umbrellaMat2 = new THREE.MeshLambertMaterial({ color: 0x2e6fd2 });
+  for (let i = 0; i < 8; i += 1) {
+    const ux = -240 + i * 68 + range(rng, -8, 8);
+    const uz = CITY.beachZ + 10 + range(rng, 0, 14);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.6, 6), new THREE.MeshLambertMaterial({ color: 0xdddddd }));
+    pole.position.set(ux, 1.3, uz);
+    group.add(pole);
+    const top = new THREE.Mesh(new THREE.ConeGeometry(2.4, 1, 8), i % 2 ? umbrellaMat2 : umbrellaMat);
+    top.position.set(ux, 2.9, uz);
+    group.add(top);
+  }
+  const shelterMat = new THREE.MeshLambertMaterial({ color: 0x3a4150 });
+  for (const [bx, bz] of [[29, 145], [145, 29], [-87, 203], [203, -87]]) {
+    box(6, 0.3, 2.4, shelterMat, bx, 3, bz, group);
+    box(0.3, 3, 2.4, shelterMat, bx - 2.8, 1.5, bz, group);
+    box(0.3, 3, 2.4, shelterMat, bx + 2.8, 1.5, bz, group);
+  }
 
   // The pier reaching into the water at the Marina, and hills hemming in the north.
   const pierMat = new THREE.MeshLambertMaterial({ color: 0x7a5c40 });
