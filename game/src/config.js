@@ -37,22 +37,37 @@ export const CAR = {
   radius: 1.7,
 };
 
-// Round 2: a busier city, a faster top end, and the new systems' tuning.
+// Round 3: a busier city, a faster top end, and the new systems' tuning.
 export const TRAFFIC_COUNT = 38;
 export const PED_COUNT = 52;
-export const PACKAGE_COUNT = 18;
+// Round 3: every package spot on the map is used now, and finding them all pays.
+export const PACKAGE_COUNT = 24;
 export const PACKAGE_REWARD = 50;
+export const PACKAGE_SET_BONUS = 500;
 export const TAXI_FARE_MIN = 80;
 export const TAXI_FARE_MAX = 160;
 export const TAXI_TIME_LIMIT = 75;
 export const HELI_STARS = 3;
 export const ROADBLOCK_STARS = 3;
 export const RACE_CHECKPOINTS = 4;
+// Round 3: four stars bring PD interceptors, five stars bring a spike strip.
+export const INTERCEPTOR_STARS = 4;
+export const SPIKE_STARS = 5;
+export const JUMP_REWARD = 25;
+export const JUMP_MIN_AIR = 0.6;
+// Round 3: the shop at Wrench's garage — armor, a pistol, and a Comet of your own.
+export const SHOP = {
+  armor: { price: 300, label: 'Body armor', desc: '+50 protection, absorbs damage first' },
+  pistol: { price: 150, label: 'Pistol + magazine', desc: 'Lena-grade pistol, 12 rounds included' },
+  ammo: { price: 50, label: 'Pistol ammo', desc: 'A fresh 12-round magazine' },
+  comet: { price: 1200, label: 'Comet GT', desc: 'Yours to keep — parked at the garage' },
+};
 
 // Vehicle display names, for the HUD's "in car" line.
 export const CAR_NAMES = {
   sedan: 'Bay Sedan', sport: 'Comet GT', taxi: 'Solmar Taxi', police: 'PD Cruiser',
   van: 'Work Van', bus: 'Bay Bus', truck: 'Dune Truck', limo: 'Kessler Limo',
+  interceptor: 'PD Interceptor', boat: 'Harbor Speedboat',
 };
 
 export const WANTED = {
@@ -66,7 +81,27 @@ export const WANTED = {
   // Round 2: the heat needed for each escalation the police bring.
   heliHeat: 55, // three stars: the PD helicopter joins the chase
   roadblockHeat: 55, // three stars: cruisers block the road ahead
+  // Round 3: four stars bring faster interceptors, five stars a spike strip.
+  interceptorHeat: 75,
+  spikeHeat: 90,
 };
+
+// Round 3: the boat's own handling — quick on open water, no brakes but the sea.
+    // Round 3: the boat's own handling — quick on open water, no brakes but the sea.
+export const BOAT = {
+  accel: 13,
+  brake: 18,
+  maxSpeed: 30,
+  steer: 1.7,
+  radius: 2.0,
+};
+
+// Round 3: the stunt ramps — a wedge on the road, a jump if you hit it fast.
+export const RAMPS = [
+  { x: 29, z: 87, heading: 0 },
+  { x: -87, z: 29, heading: Math.PI / 2 },
+  { x: 145, z: -29, heading: Math.PI },
+];
 
 export const PALETTE = {
   skyTop: 0x2f6fb8,

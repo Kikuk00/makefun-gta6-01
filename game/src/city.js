@@ -2,7 +2,7 @@
 // Town houses, Marina hotels, Harbor warehouses, Coral Hills villas, a beach and a pier.
 // Builds the meshes, the building colliders and the road graph the traffic drives on.
 import * as THREE from 'three';
-import { CITY, PALETTE } from './config.js';
+import { CITY, PALETTE, RAMPS } from './config.js';
 import { pick, range } from './random.js';
 
 const P = CITY.pitch;
@@ -71,21 +71,24 @@ export function buildCity(scene, rng) {
   };
 
   // Ground: grass base, sand along the south beach, asphalt roads on top.
+  // Round 3: the grass stops at the shoreline (x -306, z 330) instead of running
+  // 900 m across the whole map — the old plane covered the water, so the sea
+  // showed as a green lawn and the speedboat drove on grass.
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(900, 900),
+    new THREE.PlaneGeometry(640, 660),
     new THREE.MeshLambertMaterial({ color: PALETTE.grass }),
   );
   ground.rotation.x = -Math.PI / 2;
-  ground.position.set(0, 0, 20);
+  ground.position.set(14, 0, 0);
   ground.receiveShadow = true;
   group.add(ground);
 
   const sand = new THREE.Mesh(
-    new THREE.PlaneGeometry(900, 60),
+    new THREE.PlaneGeometry(640, 60),
     new THREE.MeshLambertMaterial({ color: PALETTE.sand }),
   );
   sand.rotation.x = -Math.PI / 2;
-  sand.position.set(0, 0.01, CITY.beachZ + 18);
+  sand.position.set(14, 0.01, CITY.beachZ + 18);
   sand.receiveShadow = true;
   group.add(sand);
 
@@ -318,6 +321,92 @@ export function buildCity(scene, rng) {
   const pierMat = new THREE.MeshLambertMaterial({ color: 0x7a5c40 });
   box(8, 1, 40, pierMat, 0, 0.6, CITY.waterZ + 12, group);
   for (let i = 0; i < 5; i += 1) box(0.8, 3, 0.8, pierMat, -3.5 + i * 1.75, 0.5, CITY.waterZ + 30, group);
+
+  // Round 3: the stunt ramps — orange wedges on the road, hit them fast and fly.
+  const ramps = [];
+  const rampMat = new THREE.MeshLambertMaterial({ color: 0xd2681e });
+  const rampStripe = new THREE.MeshBasicMaterial({ color: 0xffe14d });
+  for (const r of RAMPS) {
+    const ramp = new THREE.Group();
+    const slope = new THREE.Mesh(new THREE.BoxGeometry(6, 0.5, 9), rampMat);
+    slope.position.set(0, 1.35, 0);
+    slope.rotation.x = -0.36;
+    slope.castShadow = true;
+    ramp.add(slope);
+    for (const sx of [-2.2, 2.2]) {
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.12, 9), rampStripe);
+      stripe.position.set(sx, 1.95, 0);
+      stripe.rotation.x = -0.36;
+      ramp.add(stripe);
+    }
+    ramp.position.set(r.x, 0, r.z);
+    ramp.rotation.y = r.heading;
+    group.add(ramp);
+    ramps.push({ x: r.x, z: r.z, heading: r.heading });
+  }
+
+  // Round 3: the Harbor dock — a wooden platform over the west water where the
+  // speedboats tie up, two container cranes over the docks, and three moored boats
+  // bobbing on the water. The boat you can steal is a real drivable boat, not scenery.
+  box(10, 1, 34, pierMat, -297, 0.6, 100, group);
+  for (let i = 0; i < 4; i += 1) box(0.8, 3, 0.8, pierMat, -301 + i * 2.4, 0.5, 116, group);
+  const craneMat = new THREE.MeshLambertMaterial({ color: 0xd2a02e });
+  for (const cz of [-120, 120]) {
+    box(3, 26, 3, craneMat, -272, 13, cz, group);
+    addCollider(-272, cz, 4, 4);
+    box(22, 1.6, 1.6, craneMat, -282, 25, cz, group);
+    box(0.3, 8, 0.3, new THREE.MeshLambertMaterial({ color: 0x333333 }), -290, 21, cz, group);
+  }
+  const mooredBoats = [];
+  const hullMat = new THREE.MeshLambertMaterial({ color: 0xe8e8e8 });
+  const hullMat2 = new THREE.MeshLambertMaterial({ color: 0x2e6fd2 });
+  for (let i = 0; i < 3; i += 1) {
+    const b = new THREE.Group();
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.9, 6.5), i % 2 ? hullMat2 : hullMat);
+    hull.position.y = 0.4;
+    hull.castShadow = true;
+    b.add(hull);
+    const cab = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.8, 2.2), new THREE.MeshLambertMaterial({ color: 0x18242e }));
+    cab.position.set(0, 1.1, 0.6);
+    b.add(cab);
+    b.position.set(-320, 0.1, -80 + i * 120);
+    b.rotation.y = Math.PI / 2 + range(rng, -0.15, 0.15);
+    group.add(b);
+    mooredBoats.push(b);
+  }
+
+  // Round 3: the Marina ferris wheel — the landmark you steer home by from the
+  // water, turning slowly over the beach.
+  const wheel = new THREE.Group();
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(13, 0.5, 8, 24), new THREE.MeshLambertMaterial({ color: 0xd23c2e }));
+  wheel.add(rim);
+  for (let i = 0; i < 8; i += 1) {
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.4, 26, 0.4), new THREE.MeshLambertMaterial({ color: 0xe8e8e8 }));
+    spoke.rotation.z = (i * Math.PI) / 8;
+    wheel.add(spoke);
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.2, 2.2), new THREE.MeshLambertMaterial({ color: pick(rng, [0xffd23c, 0x2e6fd2, 0x2ed2a0]) }));
+    cabin.position.set(Math.sin((i * Math.PI) / 4) * 13, Math.cos((i * Math.PI) / 4) * 13, 0);
+    wheel.add(cabin);
+  }
+  wheel.position.set(120, 17, 312);
+  group.add(wheel);
+  for (const lx of [112, 128]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(1.2, 18, 1.2), new THREE.MeshLambertMaterial({ color: 0x3a4150 }));
+    leg.position.set(lx, 9, 312);
+    leg.rotation.z = lx < 120 ? 0.25 : -0.25;
+    group.add(leg);
+  }
+  sign('MARINA PIER', '#1e5a8a', '#ffd98a', 0, 8, 322, 20, 0);
+  sign('PIER 9 — BOAT HIRE', '#2e6f5a', '#ffffff', -297, 6, 118, 16, Math.PI / 2);
+  let wheelTime = 0;
+  function update(dt) {
+    wheelTime += dt;
+    wheel.rotation.z += dt * 0.12;
+    mooredBoats.forEach((b, i) => {
+      b.position.y = 0.1 + Math.sin(wheelTime * 1.1 + i * 2.1) * 0.14;
+      b.rotation.z = Math.sin(wheelTime * 0.9 + i) * 0.03;
+    });
+  }
   const hillMat = new THREE.MeshLambertMaterial({ color: 0x4a6b3a });
   for (const [hx, hz, hr] of [[-220, -360, 90], [-40, -390, 120], [160, -370, 100], [300, -350, 80]]) {
     const hill = new THREE.Mesh(new THREE.SphereGeometry(hr, 16, 12), hillMat);
@@ -327,15 +416,23 @@ export function buildCity(scene, rng) {
   }
 
   // Named places the missions use (road-side points, not block centres).
+  // Round 3: every point sits just outside its building's wall — inside the
+  // trigger radius of the step that uses it. The old points were up to 10 m from
+  // the wall, past the goto radius, so a delivery or a pickup could never fire.
   const locations = {
-    safehouse: { x: -232, z: -40, label: "Mara's apartment" },
+    safehouse: { x: -232, z: -46, label: "Mara's apartment" },
     garage: { x: 232, z: 76, label: "Wrench's garage" },
     showroom: { x: 58, z: -40, label: 'Solmar Motors showroom' },
-    cafe: { x: -174, z: 134, label: 'Cafe Azul' },
-    warehouse: { x: 232, z: -40, label: 'Harbor warehouse' },
-    hospital: { x: -58, z: -214, label: 'Coral Hills clinic' },
+    cafe: { x: -174, z: 128, label: 'Cafe Azul' },
+    warehouse: { x: 232, z: -44, label: 'Harbor warehouse' },
+    hospital: { x: -58, z: -220, label: 'Coral Hills clinic' },
     pier: { x: 0, z: 300, label: 'Marina pier' },
     beach: { x: 87, z: 306, label: 'Marina Beach' },
+    // Round 3: where the speedboat waits, and where the heist ends on open water.
+    // The marker sits far enough out that a nine-second escape still has water ahead.
+    boatPier: { x: 0, z: 345, label: 'Marina pier — speedboat' },
+    openWater: { x: 250, z: 520, label: 'Open water' },
+    harborDock: { x: -310, z: 100, label: 'Harbor dock' },
   };
 
   function nearestStreet(v) {
@@ -379,7 +476,7 @@ export function buildCity(scene, rng) {
 
   return {
     group, colliders, streets: STREETS, locations, water, harborWater,
-    nearestStreet, randomRoadPoint, guidePoint,
+    nearestStreet, randomRoadPoint, guidePoint, ramps, update,
     spawn: { x: -232, z: -29, heading: Math.PI / 2 },
   };
 }

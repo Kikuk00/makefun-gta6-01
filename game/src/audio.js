@@ -161,6 +161,11 @@ export function createAudio() {
     beep(final) { blip(final ? 880 : 440, final ? 0.3 : 0.12, 'square', 0.14); },
     reload() { blip(300, 0.05, 'square', 0.12); window.setTimeout(() => blip(420, 0.05, 'square', 0.12), 90); },
     skid() { noiseBurst(0.3, 0.22, 2500, 'bandpass'); },
+    // Round 3: an explosion for the convoy finale, a splash for the boat, and a
+    // whoosh when a stunt ramp throws the car into the air.
+    explosion() { noiseBurst(0.7, 0.6, 300); blip(70, 0.5, 'sine', 0.4, 30); },
+    splash() { noiseBurst(0.4, 0.25, 900); },
+    jump() { noiseBurst(0.35, 0.18, 1200, 'bandpass'); },
     heli(on, vol) {
       if (!ensure()) return;
       if (on && !heliOsc) {

@@ -1,7 +1,7 @@
 // Mara Voss, on foot: a box-built character who walks, runs and jumps with the camera,
 // and gets in and out of cars. Driving itself lives in vehicles.js.
 import * as THREE from 'three';
-import { CAR, PLAYER } from './config.js';
+import { CAR, CITY, PLAYER } from './config.js';
 import { clampToCity } from './vehicles.js';
 
 export function createPlayerMesh() {
@@ -57,6 +57,8 @@ export function createPlayer(G) {
     ammoMax: 12,
     stamina: 100,
     lastDamageAt: -10,
+    // Round 3: body armor from the shop — 50 points that absorb damage first.
+    armor: G.saveData ? G.saveData.armor : 0,
   };
 
   function collide(pos) {
@@ -108,7 +110,9 @@ export function createPlayer(G) {
     state.pos.x += state.velX * dt;
     state.pos.z += state.velZ * dt;
     collide(state.pos);
-    clampToCity(state.pos, PLAYER.radius);
+    // Round 3: Mara can wade 8 m into the shallows — enough to board the speedboat
+    // at the end of the Marina pier, but not to walk on water.
+    clampToCity(state.pos, PLAYER.radius, 8);
     if (input.jump && state.grounded) {
       state.vy = 7;
       state.grounded = false;
@@ -137,18 +141,6 @@ export function createPlayer(G) {
     }
   }
 
-  function damage(amount, fromX, fromZ) {
-    state.health -= amount;
-    state.lastDamageAt = G.time;
-    G.hud.flashDamage();
-    if (state.health <= 0) {
-      state.health = 0;
-      G.events.wasted();
-    }
-    void fromX;
-    void fromZ;
-  }
-
   // Round 2: reload the pistol magazine (R). A dry click costs a moment, not a life.
   function reload() {
     if (!state.hasPistol || state.ammo >= state.ammoMax) return false;
@@ -164,10 +156,29 @@ export function createPlayer(G) {
     state.ammo = state.ammoMax;
   }
 
+  // Round 3: body armor — a 50-point pool that takes damage before health does.
+  function damage(amount, fromX, fromZ) {
+    if (state.armor > 0) {
+      const absorbed = Math.min(state.armor, amount);
+      state.armor -= absorbed;
+      amount -= absorbed;
+    }
+    state.health -= amount;
+    state.lastDamageAt = G.time;
+    G.hud.flashDamage();
+    if (state.health <= 0) {
+      state.health = 0;
+      G.events.wasted();
+    }
+    void fromX;
+    void fromZ;
+  }
+
   function nearestCar(maxDist) {
     let best = null;
     let bestD = maxDist;
-    const all = [...G.traffic.cars, ...G.police.cars, ...G.missionCars];
+    // Round 3: boats count too — the speedboat at the pier is a car you can steal.
+    const all = [...G.traffic.cars, ...G.police.cars, ...G.missionCars, ...(G.boats || []), ...(G.ownedCars || [])];
     for (const car of all) {
       if (!car || car.dead || car.stolen || car.missionLocked) continue;
       const d = Math.hypot(car.pos.x - state.pos.x, car.pos.z - state.pos.z);
@@ -186,9 +197,20 @@ export function createPlayer(G) {
     return true;
   }
 
+  // Round 3: a boat counts as docked when it is within wading distance of a shore
+  // — the west edge of the harbor water, or the south edge of the Marina water.
+  function onShore(car) {
+    return car.pos.x > CITY.harborX - 14 || car.pos.z < CITY.waterZ + 14;
+  }
+
   function exitCar() {
     const car = state.inCar;
     if (!car) return;
+    // Round 3: you cannot climb out of a boat in deep water — dock it first.
+    if (car.isBoat && !onShore(car)) {
+      G.hud.banner('Too deep to get out here — steer to the shore first.');
+      return;
+    }
     state.inCar = null;
     car.stolen = false;
     car.driver = null;

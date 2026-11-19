@@ -9,7 +9,7 @@ import { STEP } from './config.js';
 import { createRandom } from './random.js';
 import { createAudio } from './audio.js';
 import { buildCity } from './city.js';
-import { createTraffic, driveStep } from './vehicles.js';
+import { createTraffic, driveStep, driveBoatStep } from './vehicles.js';
 import { createPedestrians } from './pedestrians.js';
 import { createPlayer } from './player.js';
 import { createPolice } from './police.js';
@@ -22,6 +22,9 @@ import { stageShot } from './shots.js';
 // Round 2: side activities (hidden packages, taxi fares) and the effects pool.
 import { createEffects } from './effects.js';
 import { createActivities } from './activities.js';
+// Round 3: stunt jumps and the garage shop.
+import { createStunts } from './stunts.js';
+import { createShop } from './shop.js';
 
 const MAX_FRAME = 0.25;
 const params = new URLSearchParams(window.location.search);
@@ -47,6 +50,11 @@ const G = {
   // Round 2: free-roam progress that the save slot keeps.
   faresDone: saveData ? saveData.faresDone : 0,
   bestRaceMs: saveData ? saveData.bestRaceMs : 0,
+  // Round 3: the boats on the water, the cars you own, and the shop's purchases.
+  boats: [],
+  ownedCars: [],
+  ownsComet: saveData ? saveData.ownsComet : false,
+  bestJumpMs: saveData ? saveData.bestJumpMs : 0,
 };
 G.audio = createAudio();
 G.audio.setMuted(G.muted);
@@ -63,6 +71,11 @@ G.missions = createMissions(G);
 G.activities = createActivities(G);
 G.hud = createHud(G);
 G.hud.setSaveInfo(saveData);
+// Round 3: stunts and the shop, built after the world — the shop restores a Comet
+// bought in an earlier session to its parking spot at the garage.
+G.stunts = createStunts(G);
+G.shop = createShop(G);
+G.shop.restoreOwned();
 
 G.save = function save() {
   return saveGame({
@@ -73,6 +86,9 @@ G.save = function save() {
     packagesFound: [...G.activities.found],
     faresDone: G.faresDone,
     bestRaceMs: G.bestRaceMs,
+    armor: G.player.state.armor,
+    ownsComet: G.ownsComet,
+    bestJumpMs: G.bestJumpMs,
   });
 };
 
@@ -123,6 +139,7 @@ const ACTION_MISSIONS = 8;
 const ACTION_CONFIRM = 16;
 const ACTION_RELOAD = 32;
 const ACTION_TAXI = 64;
+const ACTION_SHOP = 128;
 
 const KEYMAP = {
   KeyW: 'forward', ArrowUp: 'forward',
@@ -146,6 +163,7 @@ window.addEventListener('keydown', (event) => {
   else if (event.code === 'KeyM') input.actions |= ACTION_MISSIONS;
   else if (event.code === 'KeyR') input.actions |= ACTION_RELOAD;
   else if (event.code === 'KeyT') input.actions |= ACTION_TAXI;
+  else if (event.code === 'KeyB') input.actions |= ACTION_SHOP;
   else if (event.code === 'Escape' || event.code === 'KeyP') input.actions |= ACTION_PAUSE;
   else if (event.code === 'Enter') input.actions |= ACTION_CONFIRM;
   else return;
@@ -220,7 +238,7 @@ G.hud.onAction = (action) => {
   if (action.type === 'start') {
     startGame();
   } else if (action.type === 'resume') {
-    if (G.screen === 'pause' || G.screen === 'missions' || G.screen === 'failed' || G.screen === 'ending' || G.screen === 'complete') {
+    if (G.screen === 'pause' || G.screen === 'missions' || G.screen === 'failed' || G.screen === 'ending' || G.screen === 'complete' || G.screen === 'shop') {
       G.screen = 'play';
       G.hud.showOnly(null);
     }
@@ -245,6 +263,12 @@ G.hud.onAction = (action) => {
     G.hud.showOnly('title');
   } else if (action.type === 'open-missions') {
     G.screen = 'missions';
+  } else if (action.type === 'open-shop') {
+    G.screen = 'shop';
+  } else if (action.type === 'buy') {
+    // Round 3: buying from the shop returns whether it went through, so the shop
+    // list can rebuild itself with the new cash and the new ownership.
+    return G.shop.buy(action.id);
   } else if (action.type === 'start-mission') {
     if (G.missions.start(action.index)) {
       G.screen = 'play';
@@ -281,10 +305,17 @@ G.update = function update(dt, driveInput) {
       steer: (input.left ? 1 : 0) - (input.right ? 1 : 0),
       handbrake: input.handbrake,
     };
-    driveStep(G, car, di, dt);
-    G.audio.engine(Math.min(1, Math.abs(car.speed) / 34), true);
+    // Round 3: a boat steers on the water with its own physics; a car keeps the
+    // arcade handling it has always had.
+    if (car.isBoat) {
+      driveBoatStep(G, car, di, dt);
+      G.audio.engine(Math.min(1, Math.abs(car.speed) / 28), true);
+    } else {
+      driveStep(G, car, di, dt);
+      G.audio.engine(Math.min(1, Math.abs(car.speed) / 34), true);
+    }
     // Round 2: handbrake turns kick up tire smoke and a squeal.
-    if (di.handbrake && Math.abs(car.speed) > 10 && G.rng() < 0.5) {
+    if (di.handbrake && !car.isBoat && Math.abs(car.speed) > 10 && G.rng() < 0.5) {
       const bx = car.pos.x - Math.sin(car.heading) * 1.8;
       const bz = car.pos.z - Math.cos(car.heading) * 1.8;
       G.effects.tireSmoke(bx, 0.4, bz);
@@ -344,6 +375,10 @@ G.update = function update(dt, driveInput) {
   // Round 2: side activities and the effects pool advance with the world.
   G.activities.update(dt);
   G.effects.update(dt);
+  // Round 3: the stunt ramps, and the city's own animation — the ferris wheel turns
+  // and the moored boats bob whether or not anyone is watching.
+  G.stunts.update(dt);
+  G.city.update(dt);
 };
 
 function handleActions() {
@@ -354,7 +389,7 @@ function handleActions() {
   }
   if (actions & ACTION_PAUSE) {
     if (G.screen === 'play' || G.screen === 'pause') togglePause();
-    else if (G.screen === 'missions') {
+    else if (G.screen === 'missions' || G.screen === 'shop') {
       G.screen = 'play';
       G.hud.showOnly(null);
     }
@@ -365,6 +400,17 @@ function handleActions() {
       G.hud.buildMissionList();
       G.hud.showOnly('missions');
     } else if (G.screen === 'missions') {
+      G.screen = 'play';
+      G.hud.showOnly(null);
+    }
+  }
+  // Round 3: B opens Wrench's garage shop from free roam, and closes it again.
+  if (actions & ACTION_SHOP) {
+    if (G.screen === 'play') {
+      G.screen = 'shop';
+      G.hud.buildShop();
+      G.hud.showOnly('shop');
+    } else if (G.screen === 'shop') {
       G.screen = 'play';
       G.hud.showOnly(null);
     }
@@ -385,12 +431,14 @@ function handleActions() {
   }
   if (actions & ACTION_PUNCH) G.combat.punch();
   if (actions & ACTION_RELOAD) G.player.reload();
+  // Round 3: drive-by shooting — hold the mouse button and the pistol fires from
+  // the driver's seat too, along the car's heading.
+  if (input.shootHeld && p.hasPistol) G.combat.shoot();
   // Round 2: T starts a taxi fare in free roam (or during the Taxi Driver mission).
   if (actions & ACTION_TAXI) {
     if (!G.activities.fare.active) G.activities.startFare();
     else G.hud.banner('A fare is already running — finish it first.');
   }
-  if (input.shootHeld && p.hasPistol && !p.inCar) G.combat.shoot();
 }
 
 function contextPrompt() {

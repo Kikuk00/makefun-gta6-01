@@ -8,8 +8,14 @@
 // Serve it locally with `node serve.ts`, then open http://localhost:8080.
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
+//
+// Round 3: twelve missions (a harbor heist by speedboat, a stunt run over the city's
+// ramps, a getaway job and the last score), a garage shop, drive-by shooting, PD
+// interceptors and spike strips at four and five stars, and a ferris wheel over the
+// Marina. The program itself is unchanged in shape — it just refuses a little more
+// loudly when the entry it is about to hand in is broken.
 
-import { cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
@@ -22,17 +28,24 @@ cpSync(join(here, 'game'), join(out, 'game'), { recursive: true });
 mkdirSync(join(out, 'screenshots'), { recursive: true });
 if (existsSync(join(here, 'screenshots'))) cpSync(join(here, 'screenshots'), join(out, 'screenshots'), { recursive: true });
 
-// Round 2: refuse to hand in a broken entry instead of writing a dossier for it —
+// Round 3: refuse to hand in a broken entry instead of writing a dossier for it —
 // the gate allows at most 4 screenshots, each at most 256 KiB, and game/index.html
-// must be there; failing here, loudly, beats a silent invalid grade.
+// must be there; failing here, loudly, beats a silent invalid grade. A screenshot
+// must also be a real JPEG or PNG, not a renamed file of something else.
 const shots = existsSync(join(here, 'screenshots'))
   ? readdirSync(join(here, 'screenshots')).filter((f) => !f.startsWith('.'))
   : [];
 if (shots.length < 3 || shots.length > 4) throw new Error(`expected 3 or 4 screenshots, found ${shots.length}`);
 for (const shot of shots) {
-  if (statSync(join(here, 'screenshots', shot)).size > 262144) throw new Error(`screenshot ${shot} is over 256 KiB`);
+  const file = join(here, 'screenshots', shot);
+  if (statSync(file).size > 262144) throw new Error(`screenshot ${shot} is over 256 KiB`);
+  const head = readFileSync(file).subarray(0, 8);
+  const isJpeg = head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff;
+  const isPng = head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47;
+  if (!isJpeg && !isPng) throw new Error(`screenshot ${shot} is not a JPEG or PNG`);
 }
 if (!existsSync(join(here, 'game', 'index.html'))) throw new Error('game/index.html is missing');
+if (!existsSync(join(here, 'game', 'src', 'main.js'))) throw new Error('game/src/main.js is missing');
 
 // The scorer's own caps (reference/gate.json): only text_max_bytes shapes the bytes; the
 // others refuse an entry the scorer would refuse (more than 4 screenshots or one over

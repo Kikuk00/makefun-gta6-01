@@ -69,6 +69,8 @@ export function createPedestrians(G) {
       speed: range(G.rng, 1, 1.8),
       walkPhase: range(G.rng, 0, 6),
       target: null, down: 0, scared: 0, dead: false, fare: false,
+      // Round 3: one in four pedestrians is a jogger — faster, arms pumping.
+      jogger: G.rng() < 0.25,
     });
   }
 
@@ -117,11 +119,11 @@ export function createPedestrians(G) {
       while (dh > Math.PI) dh -= Math.PI * 2;
       while (dh < -Math.PI) dh += Math.PI * 2;
       ped.heading += Math.max(-3 * dt, Math.min(3 * dt, dh));
-      const speed = ped.scared > 0 ? ped.speed * 2.6 : ped.speed;
+      const speed = ped.scared > 0 ? ped.speed * 2.6 : ped.jogger ? ped.speed + 1.4 : ped.speed;
       ped.pos.x += Math.sin(ped.heading) * speed * dt;
       ped.pos.z += Math.cos(ped.heading) * speed * dt;
       ped.walkPhase += dt * speed * 4;
-      const swing = Math.sin(ped.walkPhase) * 0.5;
+      const swing = Math.sin(ped.walkPhase) * (ped.jogger ? 0.8 : 0.5);
       ped.mesh.legL.rotation.x = swing;
       ped.mesh.legR.rotation.x = -swing;
       ped.mesh.armL.rotation.x = -swing * 0.7;

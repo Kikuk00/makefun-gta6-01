@@ -37,8 +37,13 @@
   #stamina-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
   #stamina-bar { width: 150px; height: 6px; background: rgba(0,0,0,.6); border-radius: 3px; overflow: hidden; }
   #stamina-fill { height: 100%; width: 100%; background: #7dd8ff; }
+  /* Round 3: the armor bar, and the timer moved below the banner — round 2 let the
+     two overlap in the middle of the frame. */
+  #armor-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+  #armor-bar { width: 150px; height: 6px; background: rgba(0,0,0,.6); border-radius: 3px; overflow: hidden; }
+  #armor-fill { height: 100%; width: 0%; background: #ffb03a; }
   #packages { font-size: 13px; color: #ffd98a; margin-top: 4px; }
-  #timer { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); font-size: 24px; font-weight: 800; color: #ffd23c; background: rgba(10,12,18,.6); padding: 4px 14px; border-radius: 8px; }
+  #timer { position: absolute; top: 132px; left: 50%; transform: translateX(-50%); font-size: 24px; font-weight: 800; color: #ffd23c; background: rgba(10,12,18,.6); padding: 4px 14px; border-radius: 8px; }
   #ammo { position: absolute; right: 18px; bottom: 92px; font-size: 18px; font-weight: 800; }
   #vehicle { position: absolute; right: 18px; bottom: 122px; font-size: 14px; font-weight: 700; color: #cfe8ff; }
   #crosshair { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; }
@@ -77,6 +82,7 @@
       <div id="cash">$0</div>
       <div id="health-row"><div id="health-bar"><div id="health-fill"></div></div><span id="health-text">100</span></div>
       <div id="stamina-row"><div id="stamina-bar"><div id="stamina-fill"></div></div><span>SPRINT</span></div>
+      <div id="armor-row"><div id="armor-bar"><div id="armor-fill"></div></div><span>ARMOR</span></div>
       <div id="district">Solmar Bay</div>
       <div id="mission-title">Free roam</div>
       <div id="packages">📦 0/18 packages</div>
@@ -99,14 +105,16 @@
         <p class="tagline">An open-world crime story — sun, sea, and the fastest getaway in the city.</p>
         <p>Mara Voss came back to Solmar Bay broke. The rent is due, the cops are everywhere, and
         Lena Marlowe has work that pays — if you can drive, steal, fight and outrun the whole city.
-        Eight missions, taxi fares, a sunset street race and 18 hidden packages. One king to dethrone.</p>
+        Twelve missions, taxi fares, a sunset street race, a harbor heist by speedboat, stunt ramps
+        and 24 hidden packages. One king to dethrone, and one last score to settle.</p>
         <div class="controls">
           <span><b>W A S D</b> — move / drive</span><span><b>Mouse drag</b> — look around</span>
           <span><b>Shift</b> — run (stamina)</span><span><b>Wheel</b> — zoom camera</span>
           <span><b>E</b> — enter / exit car</span><span><b>Space</b> — jump / handbrake</span>
           <span><b>Left click</b> — shoot (with pistol)</span><span><b>F</b> — punch</span>
           <span><b>R</b> — reload pistol</span><span><b>T</b> — start a taxi fare</span>
-          <span><b>M</b> — missions</span><span><b>Esc</b> — pause</span>
+          <span><b>B</b> — shop (armor, pistol, Comet GT)</span><span><b>M</b> — missions</span>
+          <span><b>Esc</b> — pause</span>
         </div>
         <button id="start-btn">Start the story</button>
         <button id="continue-btn" class="secondary hidden">Continue</button>
@@ -120,6 +128,7 @@
         <p>Solmar Bay waits for no one — except right now.</p>
         <button id="resume-btn">Resume</button>
         <button id="missions-btn" class="secondary">Missions</button>
+        <button id="shop-btn" class="secondary">Shop</button>
         <button id="save-btn" class="secondary">Save game</button>
         <button id="restart-mission-btn" class="secondary">Restart mission</button>
         <button id="mute-btn" class="secondary">Mute / unmute</button>
@@ -133,6 +142,16 @@
         <p>Pick a job. The next one in the story is the one you have not finished yet.</p>
         <div id="mission-list"></div>
         <button id="missions-close" class="secondary">Close</button>
+      </div>
+    </div>
+
+    <div id="shop-screen" class="overlay hidden">
+      <div class="card">
+        <h2>Wrench's Garage — Shop</h2>
+        <p id="shop-cash">Your cash: $0</p>
+        <p>Spend the mission money on something that keeps you alive — or fast.</p>
+        <div id="shop-list"></div>
+        <button id="shop-close" class="secondary">Close (B)</button>
       </div>
     </div>
 
@@ -156,8 +175,9 @@
     <div id="ending-screen" class="overlay hidden">
       <div class="card">
         <h2>King of the Bay</h2>
-        <p>Kessler's limo is scrap metal, the cops lost your trail, and Solmar Bay is yours.
-        Every mission is done — the city is a playground now. Go drive into the sunset.</p>
+        <p>Kessler's limo is scrap metal, Vex's convoy burned on the Downtown loop, the cops lost
+        your trail, and Solmar Bay is yours. All twelve missions are done — the city is a playground
+        now. Go drive into the sunset.</p>
         <button id="ending-roam-btn">Keep playing</button>
       </div>
     </div>

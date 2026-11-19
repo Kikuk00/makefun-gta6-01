@@ -35,6 +35,9 @@ export function createPolice(G) {
     return { group, rotor, angle: 0 };
   })();
   let roadblock = null;
+  // Round 3: five stars bring a spike strip across the road ahead — run over it and
+  // your tires are gone. One strip at a time, gone after it bites or the heat drops.
+  let spike = null;
 
   function starsFor(heat) {
     return heat <= 0 ? 0 : Math.min(5, Math.ceil(heat / 20));
@@ -46,7 +49,7 @@ export function createPolice(G) {
     state.unseenFor = 0;
   }
 
-  function spawnCruiser() {
+  function spawnCruiser(kind = 'police') {
     const p = G.city.randomRoadPoint();
     // Spawn on a road near the player, but not on top of them.
     let tries = 0;
@@ -56,8 +59,13 @@ export function createPolice(G) {
       p.z = q.z;
       tries += 1;
     }
-    const car = makeCar(G, 0x1a1a22, 'police', p.x, p.z, 0);
+    // Round 3: interceptors are black sport coupes with a light bar — faster than a
+    // cruiser, and they only come out at four stars.
+    const car = kind === 'interceptor'
+      ? makeCar(G, 0x111111, 'interceptor', p.x, p.z, 0)
+      : makeCar(G, 0x1a1a22, 'police', p.x, p.z, 0);
     car.isPolice = true;
+    car.isInterceptor = kind === 'interceptor';
     car.speed = 12;
     cars.push(car);
     return car;
@@ -84,9 +92,15 @@ export function createPolice(G) {
   function update(dt) {
     const player = G.player.state;
     const wantCars = state.stars === 0 ? 0 : Math.min(2 + state.stars, 6);
-    while (cars.length < wantCars) spawnCruiser();
-    while (cars.length > wantCars) {
-      const idx = cars.map((c) => !!c.driver || !!c.isRoadblock).lastIndexOf(false);
+    // Round 3: two interceptors join the chase at four stars.
+    const wantInterceptors = state.stars >= 4 ? 2 : 0;
+    const interceptors = cars.filter((c) => c.isInterceptor).length;
+    for (let i = interceptors; i < wantInterceptors; i += 1) spawnCruiser('interceptor');
+    while (cars.length < wantCars + wantInterceptors) spawnCruiser();
+    while (cars.length > wantCars + wantInterceptors) {
+      // Trim cruisers first — an interceptor is worth more than a cruiser.
+      let idx = cars.map((c) => !!c.driver || !!c.isRoadblock || !!c.isInterceptor).lastIndexOf(false);
+      if (idx === -1) idx = cars.map((c) => !!c.driver || !!c.isRoadblock).lastIndexOf(false);
       if (idx === -1) break;
       const car = cars[idx];
       cars.splice(idx, 1);
@@ -122,7 +136,7 @@ export function createPolice(G) {
       let dh = wantHeading - car.heading;
       while (dh > Math.PI) dh -= Math.PI * 2;
       while (dh < -Math.PI) dh += Math.PI * 2;
-      const topSpeed = 20 + state.stars * 2.5;
+      const topSpeed = car.isInterceptor ? 28 + state.stars * 2 : 20 + state.stars * 2.5;
       const input = {
         throttle: near < 4 ? 0 : Math.abs(dh) > 1.2 ? 0.3 : 1,
         steer: Math.max(-1, Math.min(1, dh * 1.4)),
@@ -211,9 +225,50 @@ export function createPolice(G) {
       roadblock = null;
     }
 
+    // Round 3: at five stars a spike strip goes down across the road ahead of the
+    // player. Cross it and the car is crippled — slow down or swerve around it.
+    if (state.stars >= 5 && !spike && player.inCar) {
+      const fx = Math.sin(player.inCar.heading);
+      const fz = Math.cos(player.inCar.heading);
+      const strip = new THREE.Group();
+      const base = new THREE.Mesh(new THREE.BoxGeometry(9, 0.25, 1.2), new THREE.MeshLambertMaterial({ color: 0x222222 }));
+      strip.add(base);
+      for (let i = -4; i <= 4; i += 1) {
+        const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.6, 4), new THREE.MeshBasicMaterial({ color: 0xcccccc }));
+        tooth.position.set(i, 0.4, 0);
+        strip.add(tooth);
+      }
+      strip.position.set(player.pos.x + fx * 45, 0.15, player.pos.z + fz * 45);
+      strip.rotation.y = player.inCar.heading + Math.PI / 2;
+      G.scene.add(strip);
+      spike = { group: strip, until: G.time + 20 };
+    }
+    if (spike && (state.stars < 5 || G.time > spike.until)) {
+      G.scene.remove(spike.group);
+      spike = null;
+    }
+    if (spike && player.inCar) {
+      const d = Math.hypot(spike.group.position.x - player.inCar.pos.x, spike.group.position.z - player.inCar.pos.z);
+      if (d < 4.5) {
+        player.inCar.speed *= 0.35;
+        player.inCar.damage += 25;
+        G.audio.crash(0.8);
+        G.hud.shake(0.5);
+        G.hud.banner('Spike strip! Your tires are shredded.');
+        G.scene.remove(spike.group);
+        spike = null;
+      }
+    }
+
     // Siren loudness follows the nearest cruiser.
     G.audio.siren(cars.length > 0, Math.max(0, 1 - near / 120));
   }
 
-  return { state, cars, cops, heli, addHeat, update, nearestCopDist };
+  return {
+    state, cars, cops, heli, addHeat, update, nearestCopDist,
+    // Round 3: the staged screenshots re-place the roadblock and the spike strip,
+    // so the cover shows the chase at its busiest.
+    get roadblock() { return roadblock; },
+    get spike() { return spike; },
+  };
 }

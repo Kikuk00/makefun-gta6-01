@@ -65,6 +65,19 @@ export function createEffects(G) {
     spawn(x, y, z, 0xffd23c, 10, 2.5, 0.7, 1.8);
   }
 
+  // Round 3: an explosion — orange fire, grey smoke, a long-lived cloud — for the
+  // convoy finale, and a white-blue splash for the boat's wake and landings.
+  function explosion(x, y, z) {
+    spawn(x, y, z, 0xff6a2a, 14, 7, 0.5, 2.5);
+    spawn(x, y, z, 0xffd23c, 8, 5, 0.35, 2);
+    spawn(x, y, z, 0x555555, 10, 2.5, 1.2, 4);
+  }
+
+  function splash(x, y, z) {
+    spawn(x, y, z, 0xd8f0ff, 6, 2.2, 0.5, 1.8);
+    spawn(x, y, z, 0x7fb8d8, 4, 1.6, 0.7, 2.2);
+  }
+
   function update(dt) {
     for (const p of parts) {
       if (p.life <= 0) continue;
@@ -80,5 +93,5 @@ export function createEffects(G) {
     }
   }
 
-  return { update, muzzleFlash, tireSmoke, exhaust, crashSparks, goldSparkle };
+  return { update, muzzleFlash, tireSmoke, exhaust, crashSparks, goldSparkle, explosion, splash };
 }

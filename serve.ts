@@ -2,12 +2,16 @@
 // locally without a build step: `node serve.ts` serves game/ on http://localhost:8080.
 // It sends the MIME types a browser game needs, refuses any path outside game/, and otherwise
 // does nothing clever: this is a development convenience, not a web server for the internet.
+//
+// Round 3: it also serves the screenshots under /shots/<name>, so a screenshot can be
+// checked in the same browser tab as the game that rendered it.
 import { createReadStream, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('./game', import.meta.url)));
+const shotsRoot = resolve(fileURLToPath(new URL('./screenshots', import.meta.url)));
 const args = process.argv.slice(2);
 const portIndex = args.indexOf('--port');
 const requested = portIndex === -1 ? 8080 : Number(args[portIndex + 1]);
@@ -48,10 +52,16 @@ createServer((request, response) => {
   }
   // Round 2: answer HEAD the same way as GET (headers, no body) so a browser or a
   // screenshot tool can probe a file, and log each request with its status.
+  // Round 3: /shots/<name> serves the screenshots directory, for checking a shot.
   const isHead = request.method === 'HEAD';
+  let base = root;
+  if (pathname.startsWith('/shots/')) {
+    base = shotsRoot;
+    pathname = pathname.slice('/shots'.length);
+  }
   if (pathname.endsWith('/')) pathname += 'index.html';
-  const file = resolve(join(root, normalize(pathname)));
-  if (file !== root && !file.startsWith(root + sep)) {
+  const file = resolve(join(base, normalize(pathname)));
+  if (file !== base && !file.startsWith(base + sep)) {
     response.writeHead(403).end('forbidden');
     return;
   }

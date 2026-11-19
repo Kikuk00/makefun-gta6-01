@@ -4,7 +4,7 @@
 // clock runs out, $80-$160 a fare) and the Sunset Grand Prix checkpoints are all
 // staged here; the story missions in missions.js stay the spine of the game.
 import * as THREE from 'three';
-import { PACKAGE_COUNT, PACKAGE_REWARD, TAXI_FARE_MIN, TAXI_FARE_MAX, TAXI_TIME_LIMIT } from './config.js';
+import { PACKAGE_COUNT, PACKAGE_REWARD, PACKAGE_SET_BONUS, TAXI_FARE_MIN, TAXI_FARE_MAX, TAXI_TIME_LIMIT } from './config.js';
 import { sample } from './random.js';
 
 const PACKAGE_SPOTS = [
@@ -119,7 +119,14 @@ export function createActivities(G) {
         G.cash += PACKAGE_REWARD;
         G.bestCash = Math.max(G.bestCash, G.cash);
         G.effects.goldSparkle(pkg.x, 1.5, pkg.z);
-        G.hud.banner(`Hidden package ${found.size} of ${PACKAGE_COUNT} — +$${PACKAGE_REWARD}`);
+        // Round 3: the whole set pays a bonus on top — a reason to hunt all 24.
+        if (found.size >= PACKAGE_COUNT) {
+          G.cash += PACKAGE_SET_BONUS;
+          G.bestCash = Math.max(G.bestCash, G.cash);
+          G.hud.banner(`All ${PACKAGE_COUNT} packages found — +$${PACKAGE_REWARD} plus a $${PACKAGE_SET_BONUS} set bonus!`);
+        } else {
+          G.hud.banner(`Hidden package ${found.size} of ${PACKAGE_COUNT} — +$${PACKAGE_REWARD}`);
+        }
         G.audio.pickup();
         G.save();
       }

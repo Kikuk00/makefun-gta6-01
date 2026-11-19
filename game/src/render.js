@@ -102,6 +102,14 @@ export function createStage(canvas) {
     rig.look.set(focus.x + Math.sin(rig.yaw) * 2, focus.y + 1.6, focus.z + Math.cos(rig.yaw) * 2);
     camera.position.copy(rig.pos);
     camera.lookAt(rig.look);
+    // Round 3: a speed kick — the field of view widens a little at full speed, so
+    // a fast getaway feels fast instead of just looking it on the speedometer.
+    const speed01 = p.inCar ? Math.min(1, Math.abs(p.inCar.speed) / 34) : 0;
+    const wantFov = 68 + speed01 * 7;
+    if (Math.abs(camera.fov - wantFov) > 0.05) {
+      camera.fov += (wantFov - camera.fov) * Math.min(1, 4 * dt);
+      camera.updateProjectionMatrix();
+    }
     // The shadow camera follows the player so shadows stay crisp nearby.
     sun.position.set(focus.x + 120, 160, focus.z + 60);
     sun.target.position.set(focus.x, 0, focus.z);

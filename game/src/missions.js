@@ -1,8 +1,10 @@
-// The story of Mara Voss: eight missions across Solmar Bay, from a first fare to the
-// King of the Bay — plus a taxi chain and a timed street race after the finale.
+// The story of Mara Voss: twelve missions across Solmar Bay, from a first fare to
+// the King of the Bay — plus a taxi chain, a timed street race, a harbor heist by
+// speedboat, a stunt run over the city's ramps, a getaway job and the last score.
 // Each mission is a list of steps — go somewhere, steal a car, ram a target, fight
-// guards, pick something up, lose the cops, run fares, beat a race clock — with a
-// beacon marking the current objective and a cash reward at the end.
+// guards, pick something up, lose the cops, run fares, beat a race clock, jump ramps,
+// escape by boat — with a beacon marking the current objective, radio chatter from
+// the crew as the job unfolds, and a cash reward at the end.
 import * as THREE from 'three';
 import { CAR, WANTED } from './config.js';
 import { makeCar, driveStep } from './vehicles.js';
@@ -43,7 +45,7 @@ export const MISSIONS = [
     ],
     steps: [
       { type: 'goto', at: (G) => L(G).pier, text: 'Pick up the package at the Marina pier' },
-      { type: 'goto', at: (G) => L(G).cafe, text: 'Deliver the package to Cafe Azul' },
+      { type: 'goto', at: (G) => L(G).cafe, text: 'Deliver the package to Cafe Azul', radio: ['Lena', 'Cafe Azul, Old Town. The owner asks no questions, and neither do you.'] },
     ],
   },
   {
@@ -54,7 +56,7 @@ export const MISSIONS = [
     ],
     steps: [
       { type: 'goto', at: (G) => L(G).showroom, text: 'Get to the Solmar Motors showroom' },
-      { type: 'steal', text: 'Steal the Comet GT (press E near it)' },
+      { type: 'steal', text: 'Steal the Comet GT (press E near it)', radio: ['Wrench', 'Yellow Comet, front of the showroom. Do not scratch it. Actually — scratch it, it is not mine.'] },
       { type: 'deliver', at: (G) => L(G).garage, text: "Deliver the Comet GT to Wrench's garage", inCar: true },
     ],
   },
@@ -65,7 +67,7 @@ export const MISSIONS = [
       ['Mara', 'I will tap his bumper until he sees reason.'],
     ],
     steps: [
-      { type: 'ram', hits: 3, text: 'Ram Rolo\'s sedan 3 times to make him stop' },
+      { type: 'ram', hits: 3, text: 'Ram Rolo\'s sedan 3 times to make him stop', radio: ['Wrench', 'He is circling Downtown in the blue sedan. Tap him until he listens.'] },
       { type: 'pickup', at: (G) => null, text: 'Collect the cash from Rolo' },
     ],
   },
@@ -78,7 +80,7 @@ export const MISSIONS = [
     steps: [
       { type: 'goto', at: (G) => L(G).warehouse, text: 'Reach the Harbor warehouse' },
       { type: 'kill', count: 3, text: 'Deal with the warehouse guards' },
-      { type: 'pickup', at: (G) => L(G).warehouse, text: 'Grab the briefcase' },
+      { type: 'pickup', at: (G) => L(G).warehouse, text: 'Grab the briefcase', radio: ['Lena', 'The briefcase is by the crates. Take it and do not open it.'] },
       { type: 'escape', text: 'Lose the cops, then reach the safehouse' },
       { type: 'goto', at: (G) => L(G).safehouse, text: 'Bring the briefcase home' },
     ],
@@ -93,9 +95,9 @@ export const MISSIONS = [
       { type: 'goto', at: (G) => L(G).warehouse, text: 'Reach the Harbor warehouse' },
       { type: 'kill', count: 4, text: 'Clear the warehouse guards' },
       { type: 'pickup', at: (G) => L(G).warehouse, text: 'Grab crate 1 of 3' },
-      { type: 'pickup', at: (G) => L(G).warehouse, text: 'Grab crate 2 of 3', offset: { x: 12, z: -8 } },
-      { type: 'pickup', at: (G) => L(G).warehouse, text: 'Grab crate 3 of 3', offset: { x: -12, z: 8 } },
-      { type: 'deliver', at: (G) => L(G).garage, text: 'Deliver the crates to the garage', inCar: true },
+      { type: 'pickup', at: (G) => L(G).warehouse, text: 'Grab crate 2 of 3', offset: { x: 12, z: 4 } },
+      { type: 'pickup', at: (G) => L(G).warehouse, text: 'Grab crate 3 of 3', offset: { x: -12, z: 4 } },
+      { type: 'deliver', at: (G) => L(G).garage, text: 'Deliver the crates to the garage', inCar: true, radio: ['Wrench', 'Crates in the back, foot down. Kessler will notice they are gone by morning.'] },
     ],
   },
   {
@@ -105,7 +107,7 @@ export const MISSIONS = [
       ['Mara', 'One city. One king. And it will not be him.'],
     ],
     steps: [
-      { type: 'destroy', text: "Wreck Kessler's limo" },
+      { type: 'destroy', text: "Wreck Kessler's limo", radio: ['Lena', 'His limo is crossing the Harbor bridge tonight. End it, and end him.'] },
       { type: 'escape', text: 'Lose the cops, then reach the safehouse' },
       { type: 'goto', at: (G) => L(G).safehouse, text: 'Lay low at the safehouse' },
     ],
@@ -130,7 +132,59 @@ export const MISSIONS = [
       { type: 'race', checkpoints: [
         { x: 203, z: 203, label: 'Marina' }, { x: -203, z: 203, label: 'Old Town' },
         { x: -203, z: -203, label: 'Coral Hills' }, { x: 203, z: -203, label: 'Harbor' },
-      ], timeLimit: 150, text: 'Race through 4 checkpoints before the clock runs out' },
+      ], timeLimit: 150, text: 'Race through 4 checkpoints before the clock runs out', radio: ['Wrench', 'Four checkpoints, whole city, one hundred fifty seconds. The Comet can do it. Can you?'] },
+    ],
+  },
+  {
+    id: 'harbor-heist', title: 'Harbor Heist', reward: 1100,
+    briefing: [
+      ['Lena', 'Kessler keeps his cash in a briefcase at the Harbor warehouse. His guards are light tonight.'],
+      ['Wrench', 'I have a speedboat waiting at the Marina pier. Grab the case, get to the pier, and lose them on the water.'],
+    ],
+    steps: [
+      { type: 'goto', at: (G) => L(G).warehouse, text: 'Reach the Harbor warehouse' },
+      { type: 'kill', count: 2, text: 'Deal with the dock guards', radio: ['Lena', 'Two guards on the dock. Quiet would be nice. Loud works too.'] },
+      { type: 'pickup', at: (G) => L(G).warehouse, text: 'Grab the briefcase' },
+      { type: 'goto', at: (G) => L(G).boatPier, text: 'Get to the speedboat at the Marina pier', radio: ['Wrench', 'White speedboat, end of the pier. Keys are in it. Go!'] },
+      { type: 'boat', at: (G) => L(G).openWater, text: 'Escape by boat — reach open water' },
+      { type: 'escape', text: 'Lose the cops, then reach the safehouse' },
+      { type: 'goto', at: (G) => L(G).safehouse, text: 'Bring the briefcase home' },
+    ],
+  },
+  {
+    id: 'stunt-run', title: 'Stunt Run', reward: 700,
+    briefing: [
+      ['Wrench', 'The boys bet you cannot fly a car. Three ramps, three jumps, then bring it home in one piece.'],
+      ['Mara', 'Three ramps. One Comet. Hold my coffee.'],
+    ],
+    steps: [
+      { type: 'jump', count: 3, text: 'Hit 3 stunt ramps at speed', radio: ['Wrench', 'Ramps are marked orange on the map. Speed is everything — crawl over one and you just bump.'] },
+      { type: 'deliver', at: (G) => L(G).garage, text: "Drive back to Wrench's garage", inCar: true },
+    ],
+  },
+  {
+    id: 'getaway-driver', title: 'Getaway Driver', reward: 900,
+    briefing: [
+      ['Lena', "Kessler's courier is carrying the week's take in a black van, circling Downtown. Take it off him."],
+      ['Mara', 'Ram, grab, vanish. My favourite kind of errand.'],
+    ],
+    steps: [
+      { type: 'ram', hits: 2, text: "Ram the courier's van 2 times to make him stop", radio: ['Lena', 'Black van, Downtown loop. He will not stop for a friendly wave.'] },
+      { type: 'pickup', at: (G) => null, text: 'Collect the cash from the courier' },
+      { type: 'escape', text: 'Lose the cops, then reach the safehouse' },
+      { type: 'goto', at: (G) => L(G).safehouse, text: 'Bring the take home' },
+    ],
+  },
+  {
+    id: 'the-last-score', title: 'The Last Score', reward: 2000,
+    briefing: [
+      ['Lena', 'Kessler is gone, but his lieutenant Vex runs the last convoy tonight — two armored vans, Downtown loop.'],
+      ['Wrench', 'Wreck them both and the city is finally ours. Every road, every dock, every sunset.'],
+    ],
+    steps: [
+      { type: 'destroy', count: 2, text: "Wreck both of Vex's armored vans", radio: ['Lena', 'Two vans, black, armored. Ram them until they stop moving.'] },
+      { type: 'escape', text: 'Lose the cops, then reach the safehouse' },
+      { type: 'goto', at: (G) => L(G).safehouse, text: 'Lay low at the safehouse' },
     ],
   },
 ];
@@ -145,14 +199,31 @@ export function createMissions(G) {
     targetCar: null, targetHp: 0, driverLoop: null,
     // Round 2: the taxi chain and the race keep their progress here.
     faresAtStart: 0, raceIndex: 0, raceTimeLeft: 0,
+    // Round 3: the convoy keeps its own target list, and the stunt run counts jumps.
+    targetCars: [], destroyedCount: 0, jumpsAtStart: 0,
   };
 
   function objectivePos(step) {
-    if (step.type === 'ram' || step.type === 'destroy') return state.targetCar ? state.targetCar.pos : null;
+    if (step.type === 'ram' || step.type === 'destroy') {
+      const alive = state.targetCars.find((c) => !c.dead) || state.targetCar;
+      return alive ? alive.pos : null;
+    }
     // Round 2: a race checkpoint is the current objective; a taxi chain follows
     // the live fare (or has no marker while no fare is running).
     if (step.type === 'race') return step.checkpoints[state.raceIndex] || null;
     if (step.type === 'fare') return G.activities ? G.activities.fareObjective() : null;
+    // Round 3: a stunt run points at the nearest ramp; a boat step points at the
+    // water marker the step names.
+    if (step.type === 'jump') {
+      let best = null;
+      let bestD = Infinity;
+      for (const r of G.city.ramps) {
+        const d = Math.hypot(r.x - G.player.state.pos.x, r.z - G.player.state.pos.z);
+        if (d < bestD) { bestD = d; best = r; }
+      }
+      return best;
+    }
+    if (step.type === 'boat') return step.at ? step.at(G) : null;
     if (!step.at) return state.targetCar ? state.targetCar.pos : null;
     const p = step.at(G);
     if (!p) return state.targetCar ? state.targetCar.pos : null;
@@ -171,13 +242,19 @@ export function createMissions(G) {
     return step.text;
   }
 
-  function spawnTargetCar(kind, color, x, z, loop) {
+  function spawnTargetCar(kind, color, x, z, loop, hp = 60) {
     const car = makeCar(G, color, kind, x, z, 0);
     car.missionLocked = true;
     car.isTarget = true;
+    // Round 3: a target car carries its own loop and health, so a convoy of two
+    // vans can drive itself while the player hunts them one by one.
+    car.loop = loop;
+    car.wpIndex = 0;
+    car.hp = hp;
     G.missionCars.push(car);
     state.targetCar = car;
-    state.targetHp = kind === 'van' || kind === 'limo' ? 100 : 60;
+    state.targetCars.push(car);
+    state.targetHp = hp;
     state.driverLoop = loop;
     return car;
   }
@@ -186,6 +263,8 @@ export function createMissions(G) {
     for (const car of G.missionCars) G.scene.remove(car.mesh.group);
     G.missionCars.length = 0;
     state.targetCar = null;
+    state.targetCars = [];
+    state.destroyedCount = 0;
   }
 
   function setupStep(step) {
@@ -203,16 +282,25 @@ export function createMissions(G) {
       ]);
     }
     if (step.type === 'destroy') {
-      spawnTargetCar('limo', 0x111111, 203, -29, [
+      // Round 3: the last score is a convoy — two armored vans on the same loop.
+      const count = step.count || 1;
+      const loop = [
         { x: 203, z: -203 }, { x: -29, z: -203 }, { x: -29, z: 203 }, { x: 203, z: 203 },
-      ]);
+      ];
+      if (count > 1) {
+        spawnTargetCar('van', 0x1a1a1a, 203, -29, loop, 100);
+        spawnTargetCar('van', 0x1a1a1a, 203, 87, loop, 100);
+      } else {
+        spawnTargetCar('limo', 0x111111, 203, -29, loop, 100);
+      }
       G.police.addHeat(20);
     }
     if (step.type === 'kill') {
       const w = L(G).warehouse;
       const n = step.count;
       for (let i = 0; i < n; i += 1) {
-        G.combat.spawnGuard(w.x + (i % 2 === 0 ? -14 : 14), w.z + (i < 2 ? -10 : 12));
+        // Round 3: guards wait outside the warehouse wall, not inside the building.
+        G.combat.spawnGuard(w.x + (i % 2 === 0 ? -14 : 14), w.z + (i < 2 ? 10 : 16));
       }
       state.killsAtStart = G.combat.guards.filter((g) => g.dead).length;
     }
@@ -231,6 +319,25 @@ export function createMissions(G) {
       G.audio.beep(false);
       G.hud.banner(`Sunset Grand Prix — ${step.checkpoints.length} checkpoints, ${step.timeLimit} seconds. Go!`);
     }
+    // Round 3: a boat step parks a speedboat at the pier (one is enough — the same
+    // boat waits if you retry the step), and a jump step counts from zero.
+    if (step.type === 'boat') {
+      let boat = G.boats.find((b) => b.missionBoat);
+      if (!boat) {
+        const pier = L(G).boatPier;
+        boat = makeCar(G, 0xe8e8e8, 'boat', pier.x, pier.z, Math.PI);
+        boat.missionBoat = true;
+        G.boats.push(boat);
+      }
+      G.hud.banner('The speedboat is waiting at the end of the pier — get in and go!');
+    }
+    if (step.type === 'jump') {
+      state.jumpsAtStart = G.stunts.totalJumps;
+      G.hud.banner(`Stunt Run — hit ${step.count} ramps at speed. The orange wedges are on the map.`);
+    }
+    // Round 3: radio chatter — a line from the crew when the step starts, so the
+    // story keeps talking while you drive instead of only at the briefing.
+    if (step.radio) G.hud.say(step.radio[0], step.radio[1]);
     const pos = objectivePos(step);
     beacon.group.visible = !!pos;
     if (pos) beacon.group.position.set(pos.x, 0, pos.z);
@@ -270,10 +377,9 @@ export function createMissions(G) {
     G.audio.sting();
     G.hud.missionComplete(def);
     G.save();
-    // Round 2: the ending only plays when every mission is done — the two new
-    // jobs sit after the finale in the list, so finishing Kessler alone is not
-    // the end of the story any more.
-    if (def.id === 'king-of-the-bay' && MISSIONS.every((m) => state.done.has(m.id))) G.hud.showEnding();
+    // Round 3: the ending plays when every mission is done — all twelve of them,
+    // from the first fare to the last score — whichever job finishes the set.
+    if (MISSIONS.every((m) => state.done.has(m.id))) G.hud.showEnding();
   }
 
   function fail(reason) {
@@ -308,13 +414,13 @@ export function createMissions(G) {
       beacon.gem.position.y = 6 + Math.sin(G.time * 2) * 0.6;
       beacon.beam.material.opacity = 0.2 + Math.sin(G.time * 3) * 0.08;
     }
-    // Drive the target car around its loop.
-    const target = state.targetCar;
-    if (target && state.driverLoop && !target.dead) {
-      const wp = state.driverLoop[target.wpIndex || 0];
+    // Drive every target car around its loop (a convoy drives in formation).
+    for (const target of G.missionCars) {
+      if (!target.loop || target.dead) continue;
+      const wp = target.loop[target.wpIndex || 0];
       const dx = wp.x - target.pos.x;
       const dz = wp.z - target.pos.z;
-      if (Math.hypot(dx, dz) < 10) target.wpIndex = ((target.wpIndex || 0) + 1) % state.driverLoop.length;
+      if (Math.hypot(dx, dz) < 10) target.wpIndex = ((target.wpIndex || 0) + 1) % target.loop.length;
       const wantHeading = Math.atan2(dx, dz);
       let dh = wantHeading - target.heading;
       while (dh > Math.PI) dh -= Math.PI * 2;
@@ -343,6 +449,9 @@ export function createMissions(G) {
         nextStep();
       }
     } else if (step.type === 'ram' || step.type === 'destroy') {
+      // Round 3: ramming works on the nearest living target — one sedan for a ram
+      // job, two armored vans for the last score, each with its own health.
+      const target = state.targetCars.find((c) => !c.dead) || null;
       if (target && player.inCar && state.ramCooldown <= 0) {
         const d = Math.hypot(target.pos.x - player.inCar.pos.x, target.pos.z - player.inCar.pos.z);
         if (d < 4 && Math.abs(player.inCar.speed) > 7) {
@@ -350,25 +459,40 @@ export function createMissions(G) {
           G.audio.crash(0.7);
           G.hud.shake(0.4);
           target.damage += 20;
-          state.targetHp -= 18;
+          target.hp -= 18;
           if (step.type === 'ram') {
             state.ramHits += 1;
             G.hud.banner(`Hit ${state.ramHits} of ${step.hits} — keep ramming!`);
             if (state.ramHits >= step.hits) {
               target.speed = 0;
               target.dead = true;
-              state.driverLoop = null;
+              target.loop = null;
               nextStep();
             }
-          } else if (state.targetHp <= 0) {
+          } else if (target.hp <= 0) {
             target.dead = true;
             target.speed = 0;
-            state.driverLoop = null;
-            G.hud.banner("Kessler's limo is wrecked!");
-            nextStep();
+            target.loop = null;
+            state.destroyedCount += 1;
+            G.effects.explosion(target.pos.x, 1.5, target.pos.z);
+            G.audio.explosion();
+            G.hud.shake(0.6);
+            if (state.destroyedCount >= (step.count || 1)) {
+              G.hud.banner("The convoy is scrap metal — Vex's last vans are done!");
+              nextStep();
+            } else {
+              G.hud.banner(`One van down — ${step.count - state.destroyedCount} to go!`);
+            }
           }
         }
       }
+    } else if (step.type === 'boat') {
+      // Round 3: the boat step ends when Mara is in the speedboat inside the marker.
+      if (player.inCar && player.inCar.isBoat && dist < 14) nextStep();
+    } else if (step.type === 'jump') {
+      // Round 3: the stunt run counts jumps landed since the step started.
+      const done = G.stunts.totalJumps - state.jumpsAtStart;
+      if (done >= step.count) nextStep();
     } else if (step.type === 'kill') {
       const deadNow = G.combat.guards.filter((g) => g.dead).length;
       if (deadNow - state.killsAtStart >= step.count) nextStep();

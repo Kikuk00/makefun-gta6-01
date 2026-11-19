@@ -11,7 +11,7 @@ export function createCombat(G) {
   let tracer = null;
   let tracerUntil = 0;
 
-  function spawnGuard(x, z) {
+  function spawnGuard(x, z, hp = 100) {
     const mesh = createPedMesh(G.rng);
     mesh.group.children[0].material = new THREE.MeshLambertMaterial({ color: 0x3a2e22 });
     mesh.group.position.set(x, 0, z);
@@ -27,7 +27,7 @@ export function createCombat(G) {
     barGroup.add(barFg);
     mesh.group.add(barGroup);
     const guard = {
-      mesh, pos: mesh.group.position, heading: 0, hp: 100,
+      mesh, pos: mesh.group.position, heading: 0, hp, maxHp: hp,
       shootTimer: 1 + G.rng() * 2, dead: false, walkPhase: 0, barFg, barGroup,
     };
     guards.push(guard);
@@ -75,7 +75,9 @@ export function createCombat(G) {
 
   function shoot() {
     const player = G.player.state;
-    if (fireCooldown > 0 || player.inCar) return;
+    if (fireCooldown > 0) return;
+    // Round 3: drive-by shooting — the pistol works from the driver's seat too,
+    // firing along the car's heading (the player's position follows the car).
     // Round 2: a magazine of 12 — an empty gun clicks instead of firing.
     if (player.ammo <= 0) {
       fireCooldown = 0.3;
@@ -104,8 +106,9 @@ export function createCombat(G) {
       hit.target.hp -= PLAYER.pistolDamage;
       if (G.effects) G.effects.crashSparks(end.x, 1.4, end.z);
       if (hit.target.barFg) {
-        hit.target.barFg.scale.x = Math.max(0, hit.target.hp / 100);
-        hit.target.barFg.position.x = -(1 - Math.max(0, hit.target.hp / 100)) * 0.52;
+        const frac = Math.max(0, hit.target.hp / (hit.target.maxHp || 100));
+        hit.target.barFg.scale.x = frac;
+        hit.target.barFg.position.x = -(1 - frac) * 0.52;
       }
       if (hit.target.hp <= 0) {
         hit.target.dead = true;
@@ -177,6 +180,18 @@ export function createCombat(G) {
           G.audio.shot();
           showTracer({ x: guard.pos.x, y: 1.4, z: guard.pos.z }, { x: player.pos.x, y: 1.2, z: player.pos.z });
           if (G.rng() < 0.55) G.player.damage(8, guard.pos.x, guard.pos.z);
+        }
+      } else if (d < 32 && player.inCar) {
+        // Round 3: guards shoot at a getaway car too — it costs condition, not health.
+        guard.shootTimer -= dt;
+        if (guard.shootTimer <= 0) {
+          guard.shootTimer = 1.8 + G.rng() * 0.8;
+          G.audio.shot();
+          showTracer({ x: guard.pos.x, y: 1.4, z: guard.pos.z }, { x: player.pos.x, y: 1, z: player.pos.z });
+          if (G.rng() < 0.4) {
+            player.inCar.damage += 5;
+            G.hud.shake(0.2);
+          }
         }
       } else if (d > 8) {
         // Patrol back toward the warehouse when the player is far.

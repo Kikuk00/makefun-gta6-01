@@ -1,24 +1,36 @@
-// The screenshot scenes behind ?shot=chase|play|drive|mission (with &seed=N). Each one
+// The screenshot scenes behind ?shot=chase|play|boat|mission (with &seed=N). Each one
 // plays the real rules forward from a fresh world for a fixed number of steps, steered by
 // a simple autopilot, so the frame is what a short game really looks like and the same
-// seed always gives the same frame. Round 2 restages every scene so each frame shows
-// several systems at once — a chase with the helicopter, roadblock, wanted stars,
-// minimap and mission objective; a taxi fare on foot; a timed race through traffic;
-// a firefight with guards, a pistol tracer and a health bar — and the briefing
-// subtitles are cleared so they never cover the middle of the frame.
+// seed always gives the same frame. Round 3 restages every scene so each frame shows
+// several systems at once — a chase with the helicopter in the frame, a roadblock
+// across the road and an interceptor on her tail, wanted stars, minimap and mission
+// objective; a taxi fare on foot; a speedboat escape on the water with the ferris
+// wheel behind it; a firefight with guards, a pistol tracer and a health bar — and
+// the banners are cleared so they never cover the middle of the frame.
 import { STEP } from './config.js';
 import { makeCar } from './vehicles.js';
+import { angleDiff } from './random.js';
 
 function driveToward(G, car, tx, tz) {
   const guide = G.city.guidePoint(car.pos.x, car.pos.z, tx, tz, 24);
   const dGuide = Math.hypot(guide.x - car.pos.x, guide.z - car.pos.z);
   const want = Math.atan2(guide.x - car.pos.x, guide.z - car.pos.z);
-  let dh = want - car.heading;
-  while (dh > Math.PI) dh -= Math.PI * 2;
-  while (dh < -Math.PI) dh += Math.PI * 2;
+  const dh = angleDiff(want, car.heading);
   return {
     throttle: Math.abs(dh) > 1.2 ? 0.25 : dGuide < 20 ? 0.45 : 1,
     steer: Math.max(-1, Math.min(1, dh * 1.6)),
+    handbrake: false,
+  };
+}
+
+// Round 3: steering for the boat — straight at the marker across open water, no
+// street grid out there to follow.
+function driveWaterToward(G, boat, tx, tz) {
+  const want = Math.atan2(tx - boat.pos.x, tz - boat.pos.z);
+  const dh = angleDiff(want, boat.heading);
+  return {
+    throttle: 1,
+    steer: Math.max(-1, Math.min(1, dh * 1.4)),
     handbrake: false,
   };
 }
@@ -66,6 +78,14 @@ export function stageShot(G, name) {
     G.missions.start(6);
     stageCareer(G);
     G.activities.startFare();
+    // Round 3: the fare must be on a street, not out on the pier — the pier fare
+    // puts Mara on the beach under the giant sign and the shot is all billboard.
+    let guard = 0;
+    while (G.activities.fare.active && G.activities.fare.passenger.pos.z > 280 && guard < 6) {
+      G.activities.endFare(false);
+      G.activities.startFare();
+      guard += 1;
+    }
     // Stage the fare up close: Mara a few steps from the waving passenger, a
     // parked taxi at the kerb, pedestrians on the sidewalk — not a 200 m hike.
     const dest = G.activities.fareObjective() || { x: -168, z: 122 };
@@ -88,30 +108,48 @@ export function stageShot(G, name) {
     for (let i = 0; i < 3 / STEP; i += 1) {
       G.update(STEP, walkToward(G, dest.x, dest.z));
     }
-  } else if (name === 'drive') {
-    // The Sunset Grand Prix, mid-race: a taxi at speed through Downtown traffic,
-    // the race clock on the HUD, the next checkpoint on the minimap.
-    G.missions.start(7);
+    // Round 3: a closer camera on foot, so Mara and the waving passenger fill the
+    // frame instead of a stretch of empty sidewalk.
+    G.stage.rig.targetDist = 6.5;
+    G.stage.rig.dist = 6.5;
+  } else if (name === 'boat') {
+    // Round 3: the Harbor Heist, mid-escape — Mara in the white speedboat on the
+    // Marina water, the ferris wheel and the skyline behind her, the open-water
+    // marker ahead, three stars and the helicopter overhead. The mission is walked
+    // to its boat step by the real rules: warehouse, guards, briefcase, pier.
+    G.missions.start(8);
     stageCareer(G);
-    const car = makeCar(G, 0xe8c832, 'taxi', 29, -203, 0);
-    G.missionCars.push(car);
-    G.player.enterCar(car);
-    // Four traffic cars around the player — two ahead, two oncoming — so the
-    // street reads as alive instead of empty.
-    const around = G.traffic.cars.filter((c) => !c.parked && !c.stolen).slice(0, 4);
-    const spots = [[26.5, -90, 0], [31.5, 60, Math.PI], [26.5, -160, 0], [31.5, 130, Math.PI]];
-    around.forEach((c, i) => {
-      c.pos.set(spots[i][0], 0, spots[i][1]);
-      c.heading = spots[i][2];
-      c.speed = 9;
-      c.cruise = 9;
-      c.next = { x: spots[i][0], z: spots[i][2] === 0 ? 261 : -261 };
-      c.headingTarget = spots[i][2];
-      c.mesh.group.position.copy(c.pos);
-      c.mesh.group.rotation.y = c.heading;
-    });
-    for (let i = 0; i < 9 / STEP; i += 1) {
-      G.update(STEP, driveToward(G, car, 203, 203));
+    const w = G.city.locations.warehouse;
+    const pier = G.city.locations.boatPier;
+    P.pos.set(w.x, 0, w.z - 6);
+    for (let i = 0; i < 1 / STEP; i += 1) G.update(STEP, walkToward(G, w.x, w.z - 6));
+    // The dock guards are dealt with off-camera for the frame.
+    for (const g of G.combat.guards) {
+      g.dead = true;
+      g.mesh.group.rotation.x = -Math.PI / 2 + 0.15;
+      if (g.barGroup) g.barGroup.visible = false;
+    }
+    for (let i = 0; i < 0.5 / STEP; i += 1) G.update(STEP, walkToward(G, w.x, w.z));
+    P.pos.set(w.x, 0, w.z);
+    for (let i = 0; i < 1 / STEP; i += 1) G.update(STEP, walkToward(G, w.x, w.z));
+    P.pos.set(pier.x, 0, pier.z - 5);
+    for (let i = 0; i < 1 / STEP; i += 1) G.update(STEP, walkToward(G, pier.x, pier.z - 5));
+    const boat = G.boats.find((b) => b.missionBoat);
+    if (boat) {
+      // Wade the last step to the boat and board it.
+      P.pos.set(boat.pos.x, 0, boat.pos.z - 3);
+      G.player.enterCar(boat);
+      G.police.addHeat(55);
+      // Round 3: hold the camera looking back at the city — the boat, the ferris
+      // wheel and the skyline in one frame, instead of empty water ahead.
+      G.camFreeUntil = G.time + 30;
+      G.stage.rig.targetYaw = Math.PI;
+      G.stage.rig.yaw = Math.PI;
+      const target = G.city.locations.openWater;
+      for (let i = 0; i < 9 / STEP; i += 1) {
+        G.update(STEP, driveWaterToward(G, boat, target.x, target.z));
+      }
+      boat.speed = Math.max(boat.speed, 22);
     }
   } else if (name === 'mission') {
     // The Drop, mid-firefight: Mara pistol-out at the Harbor warehouse, three
@@ -210,13 +248,31 @@ export function stageShot(G, name) {
       }
     }
     // Put the helicopter in the frame, ahead and low enough to see, searchlight
-    // on the road.
+    // on the road — round 2 parked it too high and it never showed.
     const heli = G.police.heli;
     if (heli) {
-      heli.group.position.set(car.pos.x + fx * 26, 14, car.pos.z + fz * 26);
+      heli.group.position.set(car.pos.x + fx * 20, 10, car.pos.z + fz * 20);
       heli.group.rotation.y = car.heading;
     }
+    // Round 3: the roadblock across the road ahead, in the frame, and an
+    // interceptor tight on her tail — the chase as the judge should see it.
+    const rb = G.police.roadblock;
+    if (rb) {
+      rb.cars.forEach((c, i) => {
+        const side = i === 0 ? -3.5 : 3.5;
+        c.pos.set(car.pos.x + fx * 38 - fz * side, 0, car.pos.z + fz * 38 + fx * side);
+        c.heading = car.heading + Math.PI / 2;
+        c.mesh.group.position.copy(c.pos);
+        c.mesh.group.rotation.y = c.heading;
+      });
+    }
+    const interceptor = G.police.cars.find((c) => c.isInterceptor);
+    if (interceptor) place(interceptor, -14, 4);
   }
+  // Round 3: no banner over the middle of the frame, in any scene, and no leftover
+  // radio line either — the boat scene's staged walk queues one.
+  G.hud.clearBanner();
+  G.hud.clearSubtitles();
   // Settle the camera on the action, then paint.
   G.stage.updateCamera(G, 1);
   G.hud.update(0);

@@ -24,6 +24,9 @@ export function createHud(G) {
     // Round 2 elements.
     missionTitle: $('mission-title'), timer: $('timer'), ammo: $('ammo'),
     vehicle: $('vehicle'), staminaFill: $('stamina-fill'), packages: $('packages'),
+    // Round 3 elements.
+    armorFill: $('armor-fill'), shop: $('shop-screen'), shopList: $('shop-list'),
+    shopCash: $('shop-cash'),
   };
   const mapCtx = els.minimap.getContext('2d');
   let bannerUntil = 0;
@@ -34,16 +37,29 @@ export function createHud(G) {
   let lastObjective = '';
 
   function showOnly(name) {
-    for (const key of ['title', 'pause', 'missions', 'complete', 'failed', 'ending']) {
+    for (const key of ['title', 'pause', 'missions', 'complete', 'failed', 'ending', 'shop']) {
       els[key].classList.toggle('hidden', key !== name);
     }
-    if (!name) for (const key of ['title', 'pause', 'missions', 'complete', 'failed', 'ending']) els[key].classList.add('hidden');
+    if (!name) for (const key of ['title', 'pause', 'missions', 'complete', 'failed', 'ending', 'shop']) els[key].classList.add('hidden');
   }
 
   function banner(text, seconds = 3.5) {
     els.banner.textContent = text;
     els.banner.classList.remove('hidden');
     bannerUntil = G.time + seconds;
+  }
+
+  // Round 3: hide the banner right away — the staged screenshots call this so no
+  // banner covers the middle of the frame.
+  function clearBanner() {
+    els.banner.classList.add('hidden');
+    bannerUntil = 0;
+  }
+
+  // Round 3: a radio line from the crew — queued like a briefing line, so the story
+  // talks while you drive instead of only at the mission start.
+  function say(who, line) {
+    subtitleQueue.push({ who, line });
   }
 
   function showBriefing(def) {
@@ -122,6 +138,18 @@ export function createHud(G) {
     for (const s of G.city.streets) {
       mapCtx.beginPath(); mapCtx.moveTo(X(s), Z(-290)); mapCtx.lineTo(X(s), Z(290)); mapCtx.stroke();
       mapCtx.beginPath(); mapCtx.moveTo(X(-290), Z(s)); mapCtx.lineTo(X(290), Z(s)); mapCtx.stroke();
+    }
+    // Round 3: the speedboats on the water, and the orange stunt ramps on land.
+    if (G.boats) {
+      mapCtx.fillStyle = '#7dd8ff';
+      for (const boat of G.boats) {
+        if (boat.dead) continue;
+        mapCtx.beginPath(); mapCtx.arc(X(boat.pos.x), Z(boat.pos.z), 3, 0, 7); mapCtx.fill();
+      }
+    }
+    if (G.city.ramps) {
+      mapCtx.fillStyle = '#d2681e';
+      for (const r of G.city.ramps) mapCtx.fillRect(X(r.x) - 2, Z(r.z) - 2, 4, 4);
     }
     // Safehouse.
     const sh = G.city.locations.safehouse;
@@ -242,6 +270,9 @@ export function createHud(G) {
       }
     }
     if (els.staminaFill) els.staminaFill.style.width = `${Math.round(p.stamina)}%`;
+    // Round 3: the armor bar — 50 points from the shop, gone once it has absorbed
+    // its share of damage.
+    if (els.armorFill) els.armorFill.style.width = `${Math.round((p.armor || 0) / 50 * 100)}%`;
     if (els.packages && G.activities) {
       els.packages.textContent = `📦 ${G.activities.found.size}/${PACKAGE_COUNT} packages`;
     }
@@ -287,6 +318,24 @@ export function createHud(G) {
     });
   }
 
+  // Round 3: the shop list — one button per item, greyed out when owned or too dear.
+  function buildShop() {
+    els.shopList.innerHTML = '';
+    els.shopCash.textContent = `Your cash: $${G.cash}`;
+    for (const item of G.shop.items()) {
+      const btn = document.createElement('button');
+      btn.className = 'mission-item';
+      btn.textContent = item.owned
+        ? `✓ ${item.label} — owned`
+        : `${item.label} — $${item.price}  •  ${item.desc}`;
+      btn.disabled = item.owned || G.cash < item.price;
+      btn.addEventListener('click', () => {
+        if (onAction({ type: 'buy', id: item.id })) buildShop();
+      });
+      els.shopList.appendChild(btn);
+    }
+  }
+
   function wireActions() {
     els.startBtn.addEventListener('click', () => onAction({ type: 'start' }));
     els.continueBtn.addEventListener('click', () => onAction({ type: 'start' }));
@@ -296,6 +345,9 @@ export function createHud(G) {
     $('quit-btn').addEventListener('click', () => onAction({ type: 'quit-title' }));
     $('missions-btn').addEventListener('click', () => { buildMissionList(); showOnly('missions'); onAction({ type: 'open-missions' }); });
     $('missions-close').addEventListener('click', () => onAction({ type: 'resume' }));
+    // Round 3: the shop opens from the pause menu or with B, and closes the same way.
+    $('shop-btn').addEventListener('click', () => { buildShop(); showOnly('shop'); onAction({ type: 'open-shop' }); });
+    $('shop-close').addEventListener('click', () => onAction({ type: 'resume' }));
     $('retry-btn').addEventListener('click', () => onAction({ type: 'retry-mission' }));
     $('failed-roam-btn').addEventListener('click', () => onAction({ type: 'resume' }));
     $('ending-roam-btn').addEventListener('click', () => onAction({ type: 'resume' }));
@@ -307,6 +359,7 @@ export function createHud(G) {
   return {
     update, banner, showBriefing, missionComplete, missionFailed, showEnding,
     flashDamage, shake, setPrompt, showOnly, buildMissionList, clearSubtitles,
+    clearBanner, say, buildShop,
     set onAction(fn) { onAction = fn; },
     setSaveInfo(save) {
       if (save && save.cash > 0) {

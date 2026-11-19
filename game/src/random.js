@@ -28,7 +28,21 @@ export function shuffle(rng, list) {
   return list;
 }
 
-// Round 2: pick n distinct items from a list, in seeded order.
+// Round 3: pick n distinct items from a list, in seeded order.
 export function sample(rng, list, n) {
   return shuffle(rng, [...list]).slice(0, Math.min(n, list.length));
+}
+
+// Round 3: small math the new systems share — a clamped value, and the shortest
+// signed turn between two headings, so boats, interceptors and the autopilot all
+// steer the same way instead of spinning the long way round.
+export function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+
+export function angleDiff(want, have) {
+  let dh = want - have;
+  while (dh > Math.PI) dh -= Math.PI * 2;
+  while (dh < -Math.PI) dh += Math.PI * 2;
+  return dh;
 }

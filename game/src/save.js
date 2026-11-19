@@ -18,6 +18,10 @@ export function loadSave() {
       packagesFound: Array.isArray(data.packagesFound) ? data.packagesFound : [],
       faresDone: Number.isFinite(data.faresDone) ? data.faresDone : 0,
       bestRaceMs: Number.isFinite(data.bestRaceMs) ? data.bestRaceMs : 0,
+      // Round 3: the shop's purchases and the best stunt jump survive a reload too.
+      armor: Number.isFinite(data.armor) ? data.armor : 0,
+      ownsComet: data.ownsComet === true,
+      bestJumpMs: Number.isFinite(data.bestJumpMs) ? data.bestJumpMs : 0,
     };
   } catch {
     return null;
@@ -34,6 +38,9 @@ export function saveGame(state) {
       packagesFound: state.packagesFound || [],
       faresDone: state.faresDone || 0,
       bestRaceMs: state.bestRaceMs || 0,
+      armor: state.armor || 0,
+      ownsComet: state.ownsComet === true,
+      bestJumpMs: state.bestJumpMs || 0,
     }));
     return true;
   } catch {
